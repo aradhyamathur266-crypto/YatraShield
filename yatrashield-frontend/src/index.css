@@ -1,0 +1,335 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background: #f5f7fa;
+}
+
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 250px;
+  min-height: 100vh;
+  background: #172033;
+  color: white;
+  padding: 24px 18px;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.logo {
+  font-size: 21px;
+  font-weight: 700;
+  margin-bottom: 40px;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar nav a {
+  color: #d7dce5;
+  text-decoration: none;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.sidebar nav a:hover {
+  background: #27334a;
+  color: white;
+}
+
+.location-status {
+  margin-top: auto;
+  font-size: 13px;
+  color: #cbd2dd;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.location-status span {
+  color: #36b37e;
+}
+
+.location-status small {
+  color: #8e98a8;
+}
+
+.main-content {
+  flex: 1;
+  padding: 35px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 35px;
+}
+
+.welcome-text {
+  color: #7b8494;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.header h1 {
+  font-size: 28px;
+  color: #172033;
+}
+
+.user-area {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.notification {
+  font-size: 20px;
+}
+
+.avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #dce7f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: #172033;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.action-card {
+  border: none;
+  padding: 22px;
+  border-radius: 14px;
+  text-align: left;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  transition: transform 0.2s ease;
+}
+
+.action-card:hover {
+  transform: translateY(-2px);
+}
+
+.report-card {
+  background: #eef4ff;
+}
+
+.sos-card {
+  background: #fff0f0;
+}
+
+.location-card {
+  background: #eef9f4;
+}
+
+.action-icon {
+  font-size: 27px;
+}
+
+.action-card h3 {
+  margin-bottom: 5px;
+  color: #172033;
+}
+
+.action-card p {
+  font-size: 13px;
+  color: #6f7888;
+}
+/* =========================
+   SAFETY MAP
+========================= */
+
+.map-status {
+  background: #eaf7f0;
+  color: #24865b;
+  padding: 8px 13px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.map-card {
+  background: white;
+  border: 1px solid #e7eaf0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.map-placeholder {
+  height: 320px;
+  background: #e9eef3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-content {
+  text-align: center;
+  color: #172033;
+}
+
+.map-icon {
+  font-size: 40px;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.map-content h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+.map-content p {
+  color: #737d8d;
+  font-size: 14px;
+}
+
+
+/* =========================
+   RECENT INCIDENTS
+========================= */
+
+.view-all {
+  border: none;
+  background: transparent;
+  color: #536d9f;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-all:hover {
+  text-decoration: underline;
+}
+
+.incident-card {
+  background: white;
+  border: 1px solid #e7eaf0;
+  border-radius: 14px;
+  padding: 24px;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.empty-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #eaf7f0;
+  color: #24865b;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.empty-state h3 {
+  color: #172033;
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.empty-state p {
+  color: #858e9e;
+  font-size: 13px;
+}
+
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 900px) {
+
+  .action-grid,
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+@media (max-width: 700px) {
+
+  .sidebar {
+    width: 210px;
+  }
+
+  .main-content {
+    padding: 22px;
+  }
+
+  .header h1 {
+    font-size: 23px;
+  }
+
+  .header {
+    align-items: flex-start;
+  }
+
+}
+
+@media (max-width: 550px) {
+
+  .app {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    min-height: auto;
+  }
+
+  .sidebar nav {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .location-status {
+    margin-top: 20px;
+  }
+
+  .main-content {
+    padding: 18px;
+  }
+
+  .user-area {
+    gap: 10px;
+  }
+
+  .notification {
+    font-size: 18px;
+  }
+
+}
