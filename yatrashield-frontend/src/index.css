@@ -333,3 +333,77 @@ body {
   }
 
 }
+
+/* =========================
+   SAFETY TIPS
+========================= */
+
+.tips-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.tip-card {
+  background: white;
+  border: 1px solid #e7eaf0;
+  border-radius: 14px;
+  padding: 20px;
+
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.tip-card > span {
+  font-size: 24px;
+}
+
+.tip-card h3 {
+  font-size: 15px;
+  color: #172033;
+  margin-bottom: 7px;
+}
+
+.tip-card p {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #858e9e;
+}
+
+@media (max-width: 900px) {
+  .tips-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.page-placeholder {
+  background: white;
+  border: 1px solid #e7eaf0;
+  border-radius: 14px;
+  padding: 30px;
+}
+
+.page-placeholder h2 {
+  color: #172033;
+  margin-bottom: 8px;
+}
+
+.page-placeholder p {
+  color: #858e9e;
+}
+/* =========================
+   SAFETY MAP
+========================= */
+
+.map-card {
+  background: white;
+  border: 1px solid #e7eaf0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.safety-map {
+  width: 100%;
+  height: 320px;
+}

@@ -1,8 +1,20 @@
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup
+} from "react-leaflet";
+
+import "leaflet/dist/leaflet.css";
+
+
 function TouristDashboard() {
   return (
     <div className="dashboard">
 
-      {/* Quick Actions */}
+      {/* =========================
+          QUICK ACTIONS
+      ========================= */}
       <div className="action-grid">
 
         <button className="action-card report-card">
@@ -14,6 +26,7 @@ function TouristDashboard() {
           </div>
         </button>
 
+
         <button className="action-card sos-card">
           <span className="action-icon">🆘</span>
 
@@ -22,6 +35,7 @@ function TouristDashboard() {
             <p>Request immediate assistance</p>
           </div>
         </button>
+
 
         <button className="action-card location-card">
           <span className="action-icon">📍</span>
@@ -35,7 +49,9 @@ function TouristDashboard() {
       </div>
 
 
-      {/* Safety Overview */}
+      {/* =========================
+          SAFETY OVERVIEW
+      ========================= */}
       <div className="section">
 
         <div className="section-heading">
@@ -57,9 +73,9 @@ function TouristDashboard() {
         </div>
 
 
-        {/* Overview Cards */}
         <div className="overview-grid">
 
+          {/* Current Location */}
           <div className="overview-card">
 
             <span className="card-label">
@@ -77,6 +93,7 @@ function TouristDashboard() {
           </div>
 
 
+          {/* Active Incidents */}
           <div className="overview-card">
 
             <span className="card-label">
@@ -94,6 +111,7 @@ function TouristDashboard() {
           </div>
 
 
+          {/* Risk Zone */}
           <div className="overview-card">
 
             <span className="card-label">
@@ -115,7 +133,9 @@ function TouristDashboard() {
       </div>
 
 
-      {/* Safety Map */}
+      {/* =========================
+          SAFETY MAP
+      ========================= */}
       <div className="section">
 
         <div className="section-heading">
@@ -139,32 +159,35 @@ function TouristDashboard() {
 
         <div className="map-card">
 
-          <div className="map-placeholder">
+          <MapContainer
+            center={[28.4595, 77.0266]}
+            zoom={13}
+            className="safety-map"
+          >
 
-            <div className="map-content">
+            <TileLayer
+              attribution="&copy; OpenStreetMap contributors"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
 
-              <span className="map-icon">
-                📍
-              </span>
+            <Marker position={[28.4595, 77.0266]}>
 
-              <h3>
-                Safety Map
-              </h3>
+              <Popup>
+                Your current location
+              </Popup>
 
-              <p>
-                Your location and nearby risk zones will appear here.
-              </p>
+            </Marker>
 
-            </div>
-
-          </div>
+          </MapContainer>
 
         </div>
 
       </div>
 
 
-      {/* Recent Incidents */}
+      {/* =========================
+          RECENT INCIDENTS
+      ========================= */}
       <div className="section">
 
         <div className="section-heading">
@@ -195,6 +218,7 @@ function TouristDashboard() {
             </span>
 
             <div>
+
               <h3>
                 No recent incidents
               </h3>
@@ -202,6 +226,93 @@ function TouristDashboard() {
               <p>
                 You don't have any reported incidents yet.
               </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      {/* =========================
+          SAFETY TIPS
+      ========================= */}
+      <div className="section">
+
+        <div className="section-heading">
+
+          <div>
+            <p className="section-label">
+              SAFETY TIPS
+            </p>
+
+            <h2>
+              Stay safe during your journey
+            </h2>
+          </div>
+
+        </div>
+
+
+        <div className="tips-grid">
+
+          {/* Tip 1 */}
+          <div className="tip-card">
+
+            <span>📍</span>
+
+            <div>
+
+              <h3>
+                Keep location sharing active
+              </h3>
+
+              <p>
+                Your location helps responders assist you during an emergency.
+              </p>
+
+            </div>
+
+          </div>
+
+
+          {/* Tip 2 */}
+          <div className="tip-card">
+
+            <span>🚨</span>
+
+            <div>
+
+              <h3>
+                Use SOS for emergencies
+              </h3>
+
+              <p>
+                Use the SOS button when you need immediate assistance.
+              </p>
+
+            </div>
+
+          </div>
+
+
+          {/* Tip 3 */}
+          <div className="tip-card">
+
+            <span>⚠️</span>
+
+            <div>
+
+              <h3>
+                Watch for risk zones
+              </h3>
+
+              <p>
+                Pay attention to safety warnings around your current location.
+              </p>
+
             </div>
 
           </div>
