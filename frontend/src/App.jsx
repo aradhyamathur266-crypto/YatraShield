@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
@@ -76,17 +77,19 @@ function AuthorityDashboard({ incidents, onUpdateIncident }) {
   const [selectedIncidentId, setSelectedIncidentId] = useState(null);
   const [message, setMessage] = useState("");
 
-  // Load saved responders from localStorage.
   const [teamResponders, setTeamResponders] = useState(() => {
-    const savedResponders = localStorage.getItem("yatrashield-responders");
-
-    return savedResponders ? JSON.parse(savedResponders) : responders;
+    try {
+      const savedResponders = localStorage.getItem("yatrashield-responders");
+      return savedResponders ? JSON.parse(savedResponders) : responders;
+    } catch (error) {
+      console.error("Error loading responders:", error);
+      return responders;
+    }
   });
 
   const [newResponderName, setNewResponderName] = useState("");
   const [showAddResponder, setShowAddResponder] = useState(false);
 
-  // Save responders whenever the team changes.
   useEffect(() => {
     localStorage.setItem(
       "yatrashield-responders",
@@ -371,7 +374,8 @@ function AuthorityDashboard({ incidents, onUpdateIncident }) {
         </div>
 
         <p className="authority-table-note">
-          These are demo records. Changes are local and are not sent to the backend.
+          These are demo records. Changes are saved locally and are not sent to
+          the backend.
         </p>
       </section>
 
@@ -512,7 +516,28 @@ function App() {
     () => localStorage.getItem("yatrashield-dashboard") || "tourist"
   );
 
-  const [incidents, setIncidents] = useState(initialIncidents);
+  // Load incidents saved in this browser; use demo incidents if none exist.
+  const [incidents, setIncidents] = useState(() => {
+    try {
+      const savedIncidents = localStorage.getItem("yatrashield-incidents");
+      return savedIncidents ? JSON.parse(savedIncidents) : initialIncidents;
+    } catch (error) {
+      console.error("Error loading incidents:", error);
+      return initialIncidents;
+    }
+  });
+
+  // Save incidents whenever a new incident is added or an incident is updated.
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "yatrashield-incidents",
+        JSON.stringify(incidents)
+      );
+    } catch (error) {
+      console.error("Error saving incidents:", error);
+    }
+  }, [incidents]);
 
   function handleSubmitIncident(newIncident) {
     const touristIncident = {
@@ -529,9 +554,7 @@ function App() {
   function handleUpdateIncident(id, field, value) {
     setIncidents((previousIncidents) =>
       previousIncidents.map((incident) =>
-        incident.id === id
-          ? { ...incident, [field]: value }
-          : incident
+        incident.id === id ? { ...incident, [field]: value } : incident
       )
     );
   }

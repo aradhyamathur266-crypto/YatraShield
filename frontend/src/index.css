@@ -3118,3 +3118,182 @@ li {
     height: 250px;
   }
 }
+/* Live location map */
+
+.tourist-map-container {
+  position: relative;
+}
+
+.tourist-map-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  background: var(--card-background, #ffffff);
+  color: var(--text-primary, #202b27);
+  text-align: center;
+}
+
+.tourist-map-loading-icon {
+  font-size: 2rem;
+  color: #18785f;
+}
+
+.tourist-map-overlay strong {
+  font-size: 0.95rem;
+}
+
+.tourist-map-overlay p {
+  margin: 0;
+  color: var(--text-secondary, #68736f);
+  font-size: 0.82rem;
+}
+/* Current location details card */
+
+.tourist-current-location-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--border-color, #e1e8e5);
+  border-radius: 15px;
+  background: var(--card-background, #ffffff);
+}
+
+.tourist-current-location-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tourist-current-location-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tourist-current-location-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 11px;
+  background: #edf6f2;
+  color: #18785f;
+  font-size: 1.5rem;
+}
+
+.tourist-current-location-title .tourist-eyebrow {
+  margin-bottom: 4px;
+}
+
+.tourist-current-location-title h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.tourist-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #edf7f1;
+  color: #18785f;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tourist-place-name {
+  color: var(--text-primary, #202b27);
+  font-size: 1.05rem;
+  font-weight: 650;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.tourist-coordinates {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--background-secondary, #f5f8f7);
+}
+
+.tourist-coordinate-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tourist-coordinate-item span {
+  color: var(--text-secondary, #68736f);
+  font-size: 0.75rem;
+}
+
+.tourist-coordinate-item strong {
+  color: var(--text-primary, #202b27);
+  font-size: 0.9rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.tourist-coordinate-divider {
+  width: 1px;
+  height: 34px;
+  background: var(--border-color, #dce5e1);
+}
+
+.tourist-location-update-note {
+  margin: 0;
+  color: var(--text-secondary, #68736f);
+  font-size: 0.77rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 480px) {
+  .tourist-current-location-card {
+    padding: 15px;
+    gap: 13px;
+  }
+
+  .tourist-current-location-header {
+    align-items: flex-start;
+  }
+
+  .tourist-current-location-title {
+    gap: 9px;
+  }
+
+  .tourist-current-location-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .tourist-current-location-title h3 {
+    font-size: 0.9rem;
+  }
+
+  .tourist-place-name {
+    font-size: 0.95rem;
+  }
+
+  .tourist-coordinates {
+    gap: 14px;
+    padding: 12px;
+  }
+
+  .tourist-coordinate-item strong {
+    font-size: 0.8rem;
+  }
+}
