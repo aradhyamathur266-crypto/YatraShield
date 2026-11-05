@@ -18,7 +18,7 @@ function MapUpdater({ location }) {
 
   useEffect(() => {
     if (location) {
-      map.setView(location, 14);
+      map.setView(location, 16);
     }
   }, [location, map]);
 
@@ -28,66 +28,136 @@ function MapUpdater({ location }) {
 function TouristDashboard() {
   const navigate = useNavigate();
 
-  const [location, setLocation] = useState(DEFAULT_LOCATION);
+  const [location, setLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState(
-    "Getting your location..."
+    "Waiting for location permission..."
   );
-  const [locationShared, setLocationShared] = useState(false);
+  const [placeName, setPlaceName] = useState("");
+  const [placeStatus, setPlaceStatus] = useState(
+    "Waiting for your location..."
+  );
 
+  // Track the user's live GPS location
   useEffect(() => {
     if (!navigator.geolocation) {
-      setLocationStatus("Location services are not supported");
+      setLocationStatus("Geolocation is not supported by this browser");
+      setPlaceStatus("Location is unavailable");
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation([
-          position.coords.latitude,
-          position.coords.longitude,
-        ]);
+    setLocationStatus("Getting your live location...");
 
-        setLocationStatus("Location detected");
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+
+        setLocation([latitude, longitude]);
+        setLocationStatus("Live location active");
       },
-      () => {
-        setLocationStatus("Location permission unavailable");
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationStatus("Location permission denied");
+          setPlaceStatus("Please allow location access in your browser.");
+        } else {
+          setLocationStatus("Unable to detect location");
+          setPlaceStatus("Unable to retrieve your current location.");
+        }
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
+        maximumAge: 0,
+        timeout: 15000,
       }
     );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
   }, []);
 
-  function handleShareLocation() {
-    if (!navigator.geolocation) {
-      setLocationStatus("Location services are not supported");
-      return;
-    }
+  // Convert live coordinates into a readable place name
+  useEffect(() => {
+    if (!location) return;
 
-    setLocationStatus("Getting your location...");
+    const [latitude, longitude] = location;
+    const controller = new AbortController();
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation([
-          position.coords.latitude,
-          position.coords.longitude,
-        ]);
+    setPlaceStatus("Updating place name...");
 
-        setLocationStatus("Location detected");
-        setLocationShared(true);
-      },
-      () => {
-        setLocationStatus(
-          "Unable to access location. Check browser permissions."
+    // Debounce requests so GPS updates do not overload the geocoding service
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
+          {
+            signal: controller.signal,
+          }
         );
-        setLocationShared(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
+
+        if (!response.ok) {
+          throw new Error("Reverse geocoding request failed");
+        }
+
+        const data = await response.json();
+        const address = data.address || {};
+
+        const area =
+          address.neighbourhood ||
+          address.suburb ||
+          address.quarter ||
+          address.residential ||
+          address.village ||
+          address.town ||
+          address.city ||
+          address.county;
+
+        const city =
+          address.city ||
+          address.town ||
+          address.village ||
+          address.county;
+
+        const state = address.state;
+        const country = address.country;
+
+        const readablePlace = [
+          address.road,
+          area,
+          city,
+          state,
+          country,
+        ]
+          .filter(Boolean)
+          .filter((value, index, array) => array.indexOf(value) === index)
+          .join(", ");
+
+        setPlaceName(
+          readablePlace ||
+            data.display_name ||
+            "Place name unavailable"
+        );
+
+        setPlaceStatus("Place name updated");
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setPlaceStatus("Could not retrieve place name");
+        }
       }
-    );
+    }, 1500);
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [location]);
+
+  function handleLocateMe() {
+    if (location) {
+      setPlaceStatus("Your live location is being tracked.");
+    } else {
+      setLocationStatus("Waiting for your location...");
+    }
   }
 
   return (
@@ -108,7 +178,7 @@ function TouristDashboard() {
         </div>
       </section>
 
-      {/* QUICK ACTIONS — THREE CARDS IN ONE ROW */}
+      {/* QUICK ACTIONS */}
       <section className="tourist-actions" aria-label="Quick actions">
         <button
           type="button"
@@ -143,16 +213,14 @@ function TouristDashboard() {
         <button
           type="button"
           className="tourist-action-card tourist-location-action"
-          onClick={handleShareLocation}
+          onClick={handleLocateMe}
         >
           <span className="tourist-action-icon">⌖</span>
 
           <span className="tourist-action-content">
-            <strong>Share Location</strong>
+            <strong>My Live Location</strong>
             <small>
-              {locationShared
-                ? "Location retrieved"
-                : "Update your location"}
+              {location ? "Location is being tracked" : "Waiting for GPS"}
             </small>
           </span>
 
@@ -160,27 +228,27 @@ function TouristDashboard() {
         </button>
       </section>
 
-      {/* LOCATION MAP */}
+      {/* LIVE LOCATION MAP */}
       <section className="tourist-section">
         <div className="tourist-section-heading">
           <div>
             <p className="tourist-eyebrow">YOUR LOCATION</p>
-            <h2>Safety map</h2>
+            <h2>Live safety map</h2>
             <p className="tourist-section-description">
-              View your current location on the map.
+              Your position updates automatically as you move.
             </p>
           </div>
 
           <span className="tourist-map-status">
             <span className="location-indicator" />
-            Map available
+            {location ? "Live tracking" : "Locating you..."}
           </span>
         </div>
 
         <div className="tourist-map-container">
           <MapContainer
-            center={location}
-            zoom={14}
+            center={location || DEFAULT_LOCATION}
+            zoom={16}
             className="tourist-safety-map"
           >
             <TileLayer
@@ -188,17 +256,72 @@ function TouristDashboard() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
-            <MapUpdater location={location} />
+            {location && (
+              <>
+                <MapUpdater location={location} />
 
-            <Marker position={location}>
-              <Popup>
-                <strong>Your map location</strong>
-                <br />
-                This marker shows your detected browser location, or the
-                default map location if permission was unavailable.
-              </Popup>
-            </Marker>
+                <Marker position={location}>
+                  <Popup>
+                    <strong>You are here</strong>
+                    <br />
+                    Your live location is being tracked.
+                  </Popup>
+                </Marker>
+              </>
+            )}
           </MapContainer>
+
+          {!location && (
+            <div className="tourist-map-overlay">
+              <span className="tourist-map-loading-icon">⌖</span>
+              <strong>Finding your location</strong>
+              <p>Please allow location access in your browser.</p>
+            </div>
+          )}
+        </div>
+
+        {/* CURRENT PLACE AND COORDINATES */}
+        <div className="tourist-current-location-card">
+          <div className="tourist-current-location-header">
+            <div className="tourist-current-location-title">
+              <span className="tourist-current-location-icon">⌖</span>
+              <div>
+                <p className="tourist-eyebrow">LIVE LOCATION DETAILS</p>
+                <h3>Your Current Location</h3>
+              </div>
+            </div>
+
+            <span className="tourist-live-badge">
+              <span className="location-indicator" />
+              Live
+            </span>
+          </div>
+
+          <div className="tourist-place-name">
+            {location ? placeName || placeStatus : "Waiting for GPS location..."}
+          </div>
+
+          <div className="tourist-coordinates">
+            <div className="tourist-coordinate-item">
+              <span>Latitude</span>
+              <strong>
+                {location ? `${location[0].toFixed(6)}°` : "—"}
+              </strong>
+            </div>
+
+            <div className="tourist-coordinate-divider" />
+
+            <div className="tourist-coordinate-item">
+              <span>Longitude</span>
+              <strong>
+                {location ? `${location[1].toFixed(6)}°` : "—"}
+              </strong>
+            </div>
+          </div>
+
+          <p className="tourist-location-update-note">
+            Place name and coordinates update automatically as your location changes.
+          </p>
         </div>
       </section>
 
@@ -251,8 +374,8 @@ function TouristDashboard() {
         <div>
           <strong>Stay aware during your journey</strong>
           <p>
-            Keep your location accessible when needed, follow official
-            guidance, and use the SOS page for emergency options.
+            Keep location access enabled when using location-based features,
+            follow official guidance, and use the SOS page for emergency options.
           </p>
         </div>
       </section>
