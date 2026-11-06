@@ -1,6 +1,6 @@
 const Incident = require("../models/Incident");
 const getIncidentPriority = require("../utils/priorityEngine");
-const User = require("../models/User");
+const User = require("../models/user");
 
 // Create a new incident
 const createIncident = async (req, res) => {
@@ -62,6 +62,54 @@ const getMyIncidents = async (req, res) => {
     });
   }
 };
+
+
+// Get incidents assigned to the logged-in responder
+const getAssignedIncidents = async (req, res) => {
+  try {
+    const incidents = await Incident.find({
+      assignedResponder: req.user.user_id,
+    })
+      .populate("reportedBy", "name email")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: "Assigned incidents fetched successfully",
+      count: incidents.length,
+      incidents,
+    });
+  } catch (error) {
+    console.error("Get assigned incidents error:", error.message);
+
+    return res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+
+// Get all incidents (supervisor/admin only)
+const getAllIncidents = async (req, res) => {
+  try {
+    const incidents = await Incident.find()
+      .populate("reportedBy", "name email")
+      .populate("assignedResponder", "name email")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: "All incidents fetched successfully",
+      count: incidents.length,
+      incidents,
+    });
+  } catch (error) {
+    console.error("Get all incidents error:", error.message);
+
+    return res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
 
 // Get a single incident by ID
 const getIncidentById = async (req, res) => {
@@ -291,6 +339,8 @@ io.to(`user:${responder._id}`).emit("incident:assigned", {
 module.exports = {
   createIncident,
   getMyIncidents,
+  getAssignedIncidents,
+  getAllIncidents,
   getIncidentById,
   updateIncidentStatus,
   assignIncident,
