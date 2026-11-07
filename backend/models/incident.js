@@ -75,10 +75,27 @@ const incidentSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+
+    // Assignment and escalation tracking
+    assignedAt: {
+      type: Date,
+      default: null,
+    },
+
+    acknowledgementDueAt: {
+      type: Date,
+      default: null,
+    },
+
+    escalatedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
+
 );
 
 // Geospatial index

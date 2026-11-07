@@ -10,6 +10,7 @@ const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
 const incidentRoutes = require("./routes/incident.routes");
 const socketAuth = require("./middleware/socketAuth");
+const checkOverdueIncidents = require("./services/escalationService");
 
 const app = express();
 const server = http.createServer(app);
@@ -61,8 +62,28 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 5000;
 
-connectDB();
+const ESCALATION_CHECK_INTERVAL = 30 * 1000;
 
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await connectDB();
+
+    server.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+
+      // Run the escalation checker every 30 seconds
+      checkOverdueIncidents(io);
+
+      setInterval(() => {
+        checkOverdueIncidents(io);
+      }, ESCALATION_CHECK_INTERVAL);
+
+      console.log("Automatic escalation service started");
+    });
+  } catch (error) {
+    console.error("Server startup failed:", error.message);
+    process.exit(1);
+  }
+};
+
+startServer();

@@ -1,7 +1,10 @@
-const Incident = require("../models/Incident");
+const Incident = require("../models/incident");
 const getIncidentPriority = require("../utils/priorityEngine");
-const User = require("../models/User");
+const User = require("../models/user");
 
+const ACK_TIMEOUT_MINUTES = Number(
+  process.env.ACK_TIMEOUT_MINUTES || 5
+);
 // Create a new incident
 const createIncident = async (req, res) => {
   try {
@@ -62,6 +65,54 @@ const getMyIncidents = async (req, res) => {
     });
   }
 };
+
+
+// Get incidents assigned to the logged-in responder
+const getAssignedIncidents = async (req, res) => {
+  try {
+    const incidents = await Incident.find({
+      assignedResponder: req.user.user_id,
+    })
+      .populate("reportedBy", "name email")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: "Assigned incidents fetched successfully",
+      count: incidents.length,
+      incidents,
+    });
+  } catch (error) {
+    console.error("Get assigned incidents error:", error.message);
+
+    return res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+
+// Get all incidents (supervisor/admin only)
+const getAllIncidents = async (req, res) => {
+  try {
+    const incidents = await Incident.find()
+      .populate("reportedBy", "name email")
+      .populate("assignedResponder", "name email")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: "All incidents fetched successfully",
+      count: incidents.length,
+      incidents,
+    });
+  } catch (error) {
+    console.error("Get all incidents error:", error.message);
+
+    return res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
 
 // Get a single incident by ID
 const getIncidentById = async (req, res) => {
@@ -259,6 +310,14 @@ const assignIncident = async (req, res) => {
     incident.assignedResponder = responder._id;
     incident.status = "ASSIGNED";
 
+    const assignedTime = new Date();
+
+    incident.assignedAt = assignedTime;
+    incident.acknowledgementDueAt = new Date(
+    assignedTime.getTime() + ACK_TIMEOUT_MINUTES * 60 * 1000
+  );
+    incident.escalatedAt = null;
+
     await incident.save();
     const io = req.app.get("io");
 
@@ -291,6 +350,8 @@ io.to(`user:${responder._id}`).emit("incident:assigned", {
 module.exports = {
   createIncident,
   getMyIncidents,
+  getAssignedIncidents,
+  getAllIncidents,
   getIncidentById,
   updateIncidentStatus,
   assignIncident,
