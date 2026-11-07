@@ -1,7 +1,10 @@
-const Incident = require("../models/Incident");
+const Incident = require("../models/incident");
 const getIncidentPriority = require("../utils/priorityEngine");
 const User = require("../models/user");
 
+const ACK_TIMEOUT_MINUTES = Number(
+  process.env.ACK_TIMEOUT_MINUTES || 5
+);
 // Create a new incident
 const createIncident = async (req, res) => {
   try {
@@ -306,6 +309,14 @@ const assignIncident = async (req, res) => {
     // Assign responder and update status
     incident.assignedResponder = responder._id;
     incident.status = "ASSIGNED";
+
+    const assignedTime = new Date();
+
+    incident.assignedAt = assignedTime;
+    incident.acknowledgementDueAt = new Date(
+    assignedTime.getTime() + ACK_TIMEOUT_MINUTES * 60 * 1000
+  );
+    incident.escalatedAt = null;
 
     await incident.save();
     const io = req.app.get("io");
