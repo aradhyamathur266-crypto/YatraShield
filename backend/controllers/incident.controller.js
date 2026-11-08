@@ -69,7 +69,7 @@ const getMyIncidents = async (req, res) => {
 
 // Get incidents assigned to the logged-in responder
 const getAssignedIncidents = async (req, res) => {
-  try {
+   try {
     const incidents = await Incident.find({
       assignedResponder: req.user.user_id,
     })
@@ -266,78 +266,119 @@ return res.status(200).json({
 
 const assignIncident = async (req, res) => {
   try {
-    // Only admins and supervisors can assign incidents
-    if (!["admin", "supervisor"].includes(req.user.role)) {
+    if(!["admin", "supervisor"].includes(req.user.role)){
       return res.status(403).json({
         message: "Only admins and supervisors can assign incidents",
       });
     }
 
-    const { responderId } = req.body;
+    const {responderId} = req.body;
 
-    if (!responderId) {
+    if(!responderId){
       return res.status(400).json({
         message: "Responder ID is required",
       });
     }
 
-    // Find the incident
     const incident = await Incident.findById(req.params.id);
 
-    if (!incident) {
+    if(!incident){
       return res.status(404).json({
         message: "Incident not found",
       });
     }
 
-    // Only TRIAGED incidents can be assigned
-    if (incident.status !== "TRIAGED") {
+    if(!["TRIAGED", "ESCALATED"].includes(incident.status)){
       return res.status(400).json({
-        message: "Only TRIAGED incidents can be assigned",
+        message: "Only TRIAGED or ESCALATED incidents can be assigned",
       });
     }
 
-    // Verify that the target user is a responder
     const responder = await User.findById(responderId);
 
-    if (!responder || responder.role !== "responder") {
+    if(!responder || responder.role !== "responder"){
       return res.status(400).json({
         message: "Valid responder account not found",
       });
     }
 
-    // Assign responder and update status
-    incident.assignedResponder = responder._id;
-    incident.status = "ASSIGNED";
+    const previousResponder = incident.assignedResponder;
+    const wasEscalated = incident.status === "ESCALATED";
 
     const assignedTime = new Date();
 
+    incident.assignedResponder = responder._id;
+    incident.status = "ASSIGNED";
     incident.assignedAt = assignedTime;
     incident.acknowledgementDueAt = new Date(
-    assignedTime.getTime() + ACK_TIMEOUT_MINUTES * 60 * 1000
-  );
+      assignedTime.getTime() + ACK_TIMEOUT_MINUTES * 60 * 1000
+    );
     incident.escalatedAt = null;
 
     await incident.save();
+
     const io = req.app.get("io");
 
-io.to(`user:${responder._id}`).emit("incident:assigned", {
-  message: "A new incident has been assigned to you",
-  incident: {
-    _id: incident._id,
-    category: incident.category,
-    description: incident.description,
-    priority: incident.priority,
-    status: incident.status,
-    location: incident.location,
-  },
-});
+    const notification = {
+      message: wasEscalated
+        ? "An escalated incident has been reassigned to you"
+        : "A new incident has been assigned to you",
+      incident: {
+        _id: incident._id,
+        category: incident.category,
+        description: incident.description,
+        priority: incident.priority,
+        status: incident.status,
+        location: incident.location,
+        assignedAt: incident.assignedAt,
+        acknowledgementDueAt: incident.acknowledgementDueAt,
+      },
+    };
+
+    // Notify the new responder.
+    io.to(`user:${responder._id}`).emit(
+      "incident:assigned",
+      notification
+    );
+
+    if(wasEscalated){
+      // Notify the tourist.
+      io.to(`user:${incident.reportedBy}`).emit(
+        "incident:reassigned",
+        notification
+      );
+
+      // Notify the previous responder.
+      if (
+        previousResponder &&
+        previousResponder.toString() !== responder._id.toString()
+      ) {
+        io.to(`user:${previousResponder}`).emit(
+          "incident:reassigned",
+          notification
+        );
+      }
+
+      // Notify supervisors and admins.
+      const supervisors = await User.find({
+        role: { $in: ["supervisor", "admin"] },
+      }).select("_id");
+
+      for(const supervisor of supervisors){
+        io.to(`user:${supervisor._id}`).emit(
+          "incident:reassigned",
+          notification
+        );
+      }
+    }
 
     return res.status(200).json({
-      message: "Incident assigned successfully",
+      message: wasEscalated
+        ? "Escalated incident reassigned successfully"
+        : "Incident assigned successfully",
       incident,
     });
-  } catch (error) {
+  }catch(error){
     console.error("Assign incident error:", error.message);
 
     return res.status(500).json({
