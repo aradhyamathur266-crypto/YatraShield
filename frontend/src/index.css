@@ -3297,3 +3297,214 @@ li {
     font-size: 0.8rem;
   }
 }
+
+/* =========================================
+   INTEGRATION — AUTH + REALTIME STYLES
+   ========================================= */
+
+.auth-page {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.auth-form-card,
+.report-form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 25px;
+}
+
+.auth-switch-note {
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-switch-note a {
+  color: var(--accent-hover);
+  font-weight: 700;
+}
+
+.submit-report {
+  width: 100%;
+  min-height: 46px;
+  border: none;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.submit-report:hover {
+  background: var(--accent-hover);
+}
+
+.link-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.logout-nav-button {
+  min-height: 38px;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.profile-button-name {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.refresh-button {
+  margin-left: auto;
+  min-height: 38px;
+}
+
+.my-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.authority-feedback-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.authority-feedback-error button {
+  color: var(--danger);
+}
+
+.tourist-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tourist-recent-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.tourist-recent-card h3 {
+  margin: 2px 0 5px;
+  font-size: 14px;
+}
+
+.tourist-recent-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tourist-recent-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.recent-incidents-empty {
+  padding: 26px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.recent-incidents-empty p {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.sos-location-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.status-badge {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.status-reported { background: #fff4dc; color: #9a6a13; }
+.status-under-review { background: #fff4dc; color: #a36a16; }
+.status-acknowledged, .status-en-route, .status-on-scene { background: #e8f1ff; color: #2e65ad; }
+.status-assigned { background: #f1eaff; color: #7652a8; }
+.status-escalated { background: #ffeaed; color: #c72f40; }
+.status-closed { background: var(--surface-soft); color: var(--muted); }
+
+@media (max-width: 700px) {
+  .auth-form-card, .report-form-card { padding: 18px; }
+  .tourist-recent-card { flex-direction: column; }
+}
+
+.backend-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 4% 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.backend-status-banner strong {
+  white-space: nowrap;
+}
+
+.backend-status-banner > span {
+  color: var(--muted);
+  flex: 1;
+  min-width: 200px;
+}
+
+.backend-status-banner .link-button {
+  color: var(--accent-hover);
+}
+

@@ -115,16 +115,31 @@ const getAllIncidents = async (req, res) => {
 
 
 // Get a single incident by ID
+// Access: owner, assigned responder, supervisor, or admin.
 const getIncidentById = async (req, res) => {
   try {
-    const incident = await Incident.findOne({
-      _id: req.params.id,
-      reportedBy: req.user.user_id,
-    });
+    const incident = await Incident.findById(req.params.id)
+      .populate("reportedBy", "name email")
+      .populate("assignedResponder", "name email");
 
     if (!incident) {
       return res.status(404).json({
         message: "Incident not found",
+      });
+    }
+
+    const isOwner = incident.reportedBy?._id?.toString() === req.user.user_id;
+    const isAssignedResponder =
+      incident.assignedResponder?._id?.toString() === req.user.user_id;
+    // Handle populated vs raw ObjectId shapes
+    const isOwnerRaw = incident.reportedBy?.toString?.() === req.user.user_id;
+    const isResponderRaw =
+      incident.assignedResponder?.toString?.() === req.user.user_id;
+    const isStaff = ["supervisor", "admin"].includes(req.user.role);
+
+    if (!(isOwner || isOwnerRaw || isAssignedResponder || isResponderRaw || isStaff)) {
+      return res.status(403).json({
+        message: "Not authorized to view this incident",
       });
     }
 

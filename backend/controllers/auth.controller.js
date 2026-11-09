@@ -1,10 +1,10 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const User = require("../models/user");
 
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
 
     // Check required fields
     if (!name || !email || !password) {
@@ -13,8 +13,19 @@ const registerUser = async (req, res) => {
       });
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const allowedRoles = ["tourist", "responder", "supervisor", "admin"];
+    // Default to tourist; only accept a whitelisted role when provided.
+    // In production you would gate responder/supervisor creation behind an admin.
+    const requestedRole = role ? String(role).toLowerCase() : "tourist";
+    if (!allowedRoles.includes(requestedRole)) {
+      return res.status(400).json({
+        message: `Invalid role. Allowed roles: ${allowedRoles.join(", ")}`,
+      });
+    }
+
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
 
     if (existingUser) {
       return res.status(409).json({
@@ -27,14 +38,21 @@ const registerUser = async (req, res) => {
 
     // Create user
     const user = await User.create({
-      name,
-      email,
+      name: String(name).trim(),
+      email: normalizedEmail,
       password: hashedPassword,
-      role: "tourist",
+      role: requestedRole,
     });
+
+    const token = jwt.sign(
+      { user_id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || "1d" }
+    );
 
     res.status(201).json({
       message: "User registered successfully",
+      token,
       user: {
         id: user._id,
         name: user.name,
@@ -64,7 +82,7 @@ const loginUser = async (req, res) => {
     }
 
     // Find user by email
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: String(email).trim().toLowerCase() });
 
     if (!user) {
       return res.status(401).json({
@@ -91,7 +109,7 @@ const loginUser = async (req, res) => {
     },
       process.env.JWT_SECRET,
     {
-      expiresIn: "1d",
+      expiresIn: process.env.JWT_EXPIRES_IN || "1d",
     });
 
     // Login successful

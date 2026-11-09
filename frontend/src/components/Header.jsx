@@ -1,40 +1,37 @@
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/useAuth.js";
 
-import { Link, NavLink } from "react-router-dom";
+function Header({ darkMode, onToggleTheme }) {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const displayName = user?.name || "User";
+  const initials = displayName.charAt(0).toUpperCase();
+  const role = user?.role || "tourist";
 
-function Header({
-  darkMode,
-  onToggleTheme,
-  dashboardType,
-  onDashboardChange,
-}) {
+  function handleLogout() {
+    if (!window.confirm("Are you sure you want to log out of YatraShield?")) return;
+    logout();
+    navigate("/login");
+  }
+
   return (
     <header className="top-navbar">
       <Link to="/" className="brand">
-        <span className="brand-icon"></span>
+        <span className="brand-icon">🛡️</span>
         <span>YatraShield</span>
       </Link>
 
       <nav className="navbar-links">
-        <NavLink to="/" end>
-          Dashboard
-        </NavLink>
-
+        <NavLink to="/" end>Dashboard</NavLink>
         <NavLink to="/report">Report Incident</NavLink>
         <NavLink to="/incidents">My Incidents</NavLink>
         <NavLink to="/safety">Safety Info</NavLink>
       </nav>
 
       <div className="navbar-actions">
-        <select
-          className="dashboard-selector"
-          value={dashboardType}
-          onChange={(event) => onDashboardChange(event.target.value)}
-          aria-label="Choose dashboard type"
-        >
-          <option value="tourist">Tourist</option>
-          <option value="authority">Authority</option>
-        </select>
-
+        {user && (
+          <span className="role-chip" title={`Logged in as ${role}`}>{role}</span>
+        )}
         <button
           type="button"
           className="theme-toggle"
@@ -45,14 +42,16 @@ function Header({
           {darkMode ? "☀" : "☾"}
         </button>
 
-        <Link to="/sos" className="navbar-sos">
-          SOS
-        </Link>
+        <Link to="/sos" className="navbar-sos">SOS</Link>
 
         <Link to="/profile" className="profile-button">
-          <span className="profile-avatar">A</span>
-          <span>Profile</span>
+          <span className="profile-avatar">{initials}</span>
+          <span className="profile-button-name">{displayName.split(" ")[0]}</span>
         </Link>
+
+        <button type="button" className="secondary-button logout-nav-button" onClick={handleLogout}>
+          Log out
+        </button>
       </div>
     </header>
   );
