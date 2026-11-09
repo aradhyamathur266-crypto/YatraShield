@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AlertCircle, Eye, EyeOff, Shield } from "lucide-react";
+import AuthLayout from "../components/AuthLayout.jsx";
+import { Icon } from "../components/Icon.jsx";
+import { Notice } from "../components/ui.jsx";
 import { useAuth } from "../context/useAuth.js";
 
 export default function Login() {
@@ -28,53 +30,41 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-wrap">
-      <div className="auth-story">
-        <Link to="/" className="brand" style={{ color: "#fff", textDecoration: "none" }}>
-          <span className="brand-mark" style={{ background: "rgba(255,255,255,.12)" }}><Shield /></span>
-          <span className="brand-name" style={{ color: "#fff" }}>YatraShield</span>
-        </Link>
-        <div>
-          <h2>Safety that arrives before you have to ask twice.</h2>
-          <p>One account for reporting, tracking, and real-time response — whether you're a tourist, responder, or supervisor.</p>
-        </div>
-        <div className="auth-quote">
-          "Reported at Cyber Hub, responder on scene in 6 minutes. I could see every update live."
-          <strong>— Tourist, Gurugram</strong>
-        </div>
-      </div>
+    <AuthLayout
+      headline={<>Help that arrives before you ask <em>twice.</em></>}
+      body="One account for reporting, tracking and real-time response — whether you’re a tourist, a responder or a supervisor."
+    >
+      <p className="eyebrow">Welcome back</p>
+      <h1>Log in</h1>
+      <p className="auth-sub">Access your incidents, live map and real-time updates.</p>
 
-      <div className="auth-panel">
-        <span className="eyebrow">Welcome back</span>
-        <h1>Log in to YatraShield</h1>
-        <p className="sub">Access your incidents, live map, and real-time updates.</p>
+      <form className="form-stack" onSubmit={onSubmit} noValidate>
+        <label className="field" htmlFor="email">
+          <span>Email</span>
+          <input id="email" type="email" inputMode="email" autoComplete="email" placeholder="you@example.com"
+            value={form.email} onChange={(e) => set("email", e.target.value)} />
+        </label>
 
-        <form className="auth-form" onSubmit={onSubmit} noValidate>
-          <div className="field">
-            <label htmlFor="email">Email</label>
-            <input id="email" type="email" autoComplete="email" placeholder="you@example.com"
-              value={form.email} onChange={(e) => set("email", e.target.value)} required />
-          </div>
-          <div className="field">
-            <label htmlFor="password">Password</label>
-            <div className="password-wrap">
-              <input id="password" type={showPw ? "text" : "password"} autoComplete="current-password"
-                placeholder="Enter your password" value={form.password} onChange={(e) => set("password", e.target.value)} required />
-              <button type="button" className="password-toggle" onClick={() => setShowPw((s) => !s)} aria-label={showPw ? "Hide password" : "Show password"}>
-                {showPw ? <EyeOff /> : <Eye />}
-              </button>
-            </div>
-          </div>
+        <label className="field" htmlFor="password">
+          <span>Password</span>
+          <span className="input-wrap">
+            <input id="password" type={showPw ? "text" : "password"} autoComplete="current-password"
+              placeholder="Enter your password" value={form.password} onChange={(e) => set("password", e.target.value)} />
+            <button type="button" className="icon-btn is-small" onClick={() => setShowPw((s) => !s)}
+              aria-label={showPw ? "Hide password" : "Show password"} aria-pressed={showPw}>
+              <Icon name={showPw ? "eyeOff" : "eye"} size={17} />
+            </button>
+          </span>
+        </label>
 
-          {error && <div className="alert alert-error" role="alert"><AlertCircle />{error}</div>}
+        {error && <Notice tone="error">{error}</Notice>}
 
-          <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={authLoading}>
-            {authLoading ? "Logging in..." : "Log in"}
-          </button>
-        </form>
+        <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={authLoading}>
+          {authLoading ? "Logging in…" : "Log in"}
+        </button>
+      </form>
 
-        <p className="auth-alt">New here? <Link to="/register">Create an account</Link></p>
-      </div>
-    </div>
+      <p className="auth-alt">New here? <Link to="/register">Create an account</Link></p>
+    </AuthLayout>
   );
 }

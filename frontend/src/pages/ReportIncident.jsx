@@ -1,57 +1,45 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  AlertCircle, Car, CheckCircle2, Flame, HeartPulse, MapPin,
-  ShieldAlert, Siren, UserMinus, UsersRound,
-} from "lucide-react";
+import { lazy, Suspense, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { errorMessage, incidentApi } from "../api/api.js";
+import { Icon } from "../components/Icon.jsx";
+import { Notice, PageHead, Skeleton } from "../components/ui.jsx";
+import { locationLabel, useGeolocation } from "../hooks/useGeolocation.js";
 import { shortId } from "../utils/incidents.js";
 
+const MapView = lazy(() => import("../components/MapView.jsx"));
+
 const CATEGORY_OPTIONS = [
-  { value: "medical", label: "Medical", icon: HeartPulse },
-  { value: "accident", label: "Accident", icon: Car },
-  { value: "crime", label: "Crime", icon: ShieldAlert },
-  { value: "lost_person", label: "Lost / Missing", icon: UserMinus },
-  { value: "fire", label: "Fire", icon: Flame },
-  { value: "harassment", label: "Harassment", icon: UsersRound },
-  { value: "natural_disaster", label: "Natural disaster", icon: Siren },
-  { value: "other", label: "Other", icon: AlertCircle },
+  { value: "medical", label: "Medical", hint: "Injury, illness" },
+  { value: "accident", label: "Accident", hint: "Road, fall, collision" },
+  { value: "crime", label: "Crime", hint: "Theft, assault" },
+  { value: "lost_person", label: "Lost / missing", hint: "Person or child" },
+  { value: "fire", label: "Fire", hint: "Smoke, flames" },
+  { value: "harassment", label: "Harassment", hint: "Threats, stalking" },
+  { value: "natural_disaster", label: "Natural disaster", hint: "Flood, quake" },
+  { value: "other", label: "Other", hint: "Anything else" },
 ];
 
 export default function ReportIncident() {
-  const navigate = useNavigate();
+  const geo = useGeolocation();
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [emergency, setEmergency] = useState(false);
-  const [location, setLocation] = useState(null);
-  const [locStatus, setLocStatus] = useState("Getting your current location...");
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState("success");
+  const [feedback, setFeedback] = useState(null); // { tone, text }
   const [created, setCreated] = useState(null);
 
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      queueMicrotask(() => setLocStatus("GPS not supported — type location as coordinates? (denied in demo)"));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-        setLocStatus("Current location captured");
-      },
-      () => setLocStatus("Location permission not granted."),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }, []);
+  const markers = useMemo(
+    () => (geo.position ? [{ id: "you", position: geo.position, kind: "you", tone: "you", label: "Report location" }] : []),
+    [geo.position]
+  );
 
   async function onSubmit(e) {
     e.preventDefault();
-    setMessage("");
+    setFeedback(null);
     setCreated(null);
-    if (!category) { setMessage("Please pick a category."); setMessageType("error"); return; }
-    if (!description.trim()) { setMessage("Describe what happened."); setMessageType("error"); return; }
-    if (!location) { setMessage("Location is required. Allow location access and try again."); setMessageType("error"); return; }
+    if (!category) return setFeedback({ tone: "error", text: "Pick a category first." });
+    if (!description.trim()) return setFeedback({ tone: "error", text: "Describe what happened." });
+    if (!geo.position) return setFeedback({ tone: "error", text: "Location is required. Allow location access and try again." });
 
     const finalDescription = emergency
       ? `EMERGENCY — currently in immediate danger: ${description.trim()}`
@@ -62,91 +50,133 @@ export default function ReportIncident() {
       const res = await incidentApi.create({
         category,
         description: finalDescription,
-        location: { type: "Point", coordinates: [location.longitude, location.latitude] },
+        location: { type: "Point", coordinates: [geo.position[1], geo.position[0]] },
       });
       const incident = res.data?.incident;
       setCreated(incident);
-      setMessage(incident ? `Incident ${shortId(incident)} reported. Priority: ${(incident.priority || "").toUpperCase()}.` : "Incident reported successfully.");
-      setMessageType("success");
+      setFeedback({
+        tone: "ok",
+        text: incident
+          ? `Incident ${shortId(incident)} reported. Priority: ${(incident.priority || "").toUpperCase()}.`
+          : "Incident reported successfully.",
+      });
       setCategory("");
       setDescription("");
       setEmergency(false);
     } catch (err) {
-      setMessage(errorMessage(err, "Could not submit. Is the backend running?"));
-      setMessageType("error");
+      setFeedback({ tone: "error", text: errorMessage(err, "Could not submit. Is the backend running?") });
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="form-shell">
-      <div className="page-head">
-        <span className="eyebrow">Safety report</span>
-        <h1>Report an incident</h1>
-        <p>Structured reports get triaged faster. Priority is calculated automatically.</p>
-      </div>
+    <div className="page page-narrow">
+      <PageHead eyebrow="Safety report" title={<>Report an <em>incident.</em></>}>
+        Structured reports get triaged faster. Priority is calculated automatically.
+      </PageHead>
 
-      <form onSubmit={onSubmit} className="card card-pad">
-        <div className="field">
-          <label>Incident category</label>
-          <div className="tile-picker">
-            {CATEGORY_OPTIONS.map(({ value, label, icon: Icon }) => (
-              <button key={value} type="button"
-                className={`tile ${category === value ? "selected" : ""}`}
-                onClick={() => { setCategory(value); setMessage(""); }}>
-                <Icon /> {label}
+      <form onSubmit={onSubmit} className="card card-pad form-stack" noValidate>
+        <fieldset className="field">
+          <legend>Category</legend>
+          <div className="cat-grid">
+            {CATEGORY_OPTIONS.map(({ value, label, hint }, i) => (
+              <button
+                key={value}
+                type="button"
+                className="cat"
+                aria-pressed={category === value}
+                onClick={() => {
+                  setCategory(value);
+                  setFeedback(null);
+                }}
+              >
+                <span className="mono cat-no">{String(i + 1).padStart(2, "0")}</span>
+                <span className="cat-label">{label}</span>
+                <span className="cat-hint">{hint}</span>
               </button>
             ))}
           </div>
-        </div>
+        </fieldset>
 
-        <div className="field">
-          <label htmlFor="desc">Description</label>
-          <textarea id="desc" rows={5} placeholder="What happened, where, and how many people are involved..."
-            value={description} onChange={(e) => { setDescription(e.target.value); setMessage(""); }} required />
-          <small>{description.length} characters · The server checks keywords like &quot;unconscious&quot;, &quot;trapped&quot; for critical priority.</small>
-        </div>
+        <label className="field" htmlFor="desc">
+          <span>Description</span>
+          <textarea
+            id="desc"
+            rows={5}
+            maxLength={1000}
+            placeholder="What happened, where exactly, and how many people are involved…"
+            value={description}
+            onChange={(e) => {
+              setDescription(e.target.value);
+              setFeedback(null);
+            }}
+          />
+          <small>{description.length}/1000 · Words like “unconscious” or “trapped” raise priority automatically.</small>
+        </label>
 
-        <div className={`switch-row ${emergency ? "active" : ""}`} style={{ marginBottom: 18 }}>
+        <div className="switch-row" data-on={emergency}>
           <div>
             <strong>Immediate danger</strong>
-            <small>Someone is currently in danger or unable to move. This escalates priority to critical.</small>
+            <small>Someone is in danger or unable to move. Escalates priority to critical.</small>
           </div>
-          <button type="button" className={`switch ${emergency ? "on" : ""}`} role="switch" aria-checked={emergency}
-            aria-label="Immediate danger" onClick={() => setEmergency((s) => !s)} />
+          <button
+            type="button"
+            className="switch"
+            role="switch"
+            aria-checked={emergency}
+            aria-label="Immediate danger"
+            onClick={() => setEmergency((s) => !s)}
+          >
+            <i />
+          </button>
         </div>
 
-        <div className="card" style={{ background: "var(--surface-2)", marginBottom: 18 }}>
-          <div className="card-pad" style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <span className="quick-icon" style={{ background: "var(--surface)", color: "var(--emerald-dark)", width: 38, height: 38 }}>
-              <MapPin style={{ width: 18, height: 18 }} />
-            </span>
-            <div>
-              <strong style={{ fontSize: 13 }}>Location</strong>
-              <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>{locStatus}</p>
-              {location && <small>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</small>}
-            </div>
+        <div className="loc-card">
+          <div className="loc-map">
+            {geo.position ? (
+              <Suspense fallback={<Skeleton height="100%" />}>
+                <MapView
+                  className="map-fill"
+                  markers={markers}
+                  initialCenter={geo.position}
+                  zoom={16}
+                  interactive={false}
+                  label="Report location preview"
+                />
+              </Suspense>
+            ) : (
+              <div className="loc-placeholder"><Icon name="pin" size={22} /></div>
+            )}
+          </div>
+          <div className="loc-meta">
+            <p className="eyebrow">Location</p>
+            <strong>{locationLabel(geo.status)}</strong>
+            {geo.position && (
+              <span className="mono">
+                {geo.position[0].toFixed(5)}, {geo.position[1].toFixed(5)}
+                {geo.accuracy ? ` · ±${Math.round(geo.accuracy)} m` : ""}
+              </span>
+            )}
+            {(geo.status === "denied" || geo.status === "error") && (
+              <button type="button" className="btn btn-sm btn-ghost" onClick={geo.retry}>Try again</button>
+            )}
           </div>
         </div>
 
-        {message && (
-          <div className={`alert ${messageType === "error" ? "alert-error" : "alert-success"}`} role="status">
-            {messageType === "error" ? <AlertCircle /> : <CheckCircle2 />}
-            <span>{message}
-              {created && messageType === "success" && (
-                <> <button type="button" className="link-btn" onClick={() => navigate(`/incidents/${created._id}`)}>Track it →</button></>
-              )}
-            </span>
-          </div>
+        {feedback && (
+          <Notice tone={feedback.tone}>
+            {feedback.text}
+            {created && feedback.tone === "ok" && (
+              <> <Link to={`/incidents/${created._id}`} className="inline-link">Track it <Icon name="arrowRight" size={13} /></Link></>
+            )}
+          </Notice>
         )}
 
         <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={submitting}>
-          {submitting ? "Submitting..." : "Submit incident"}
+          {submitting ? "Submitting…" : "Submit incident"}
         </button>
-        <p style={{ marginTop: 12, textAlign: "center", fontSize: 12, color: "var(--muted)" }}>
-          Evidence uploads are coming soon — reports are stored securely on the server.
-        </p>
+        <p className="fine-print">Evidence uploads are coming soon. Reports are stored securely on the server.</p>
       </form>
     </div>
   );

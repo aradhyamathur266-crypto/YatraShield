@@ -1,30 +1,48 @@
 import { useEffect, useState } from "react";
-import { TriangleAlert, X } from "lucide-react";
 import { checkHealth } from "../api/api.js";
+import { Icon } from "./Icon.jsx";
 
+// "unknown" until the first probe returns, so we never flash a false alarm.
 export default function BackendStatus() {
-  const [health, setHealth] = useState(null);
+  const [health, setHealth] = useState("unknown");
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    checkHealth().then((data) => { if (!cancelled) setHealth(data); });
-    const id = setInterval(() => {
-      checkHealth().then((data) => { if (!cancelled) setHealth(data); });
-    }, 10000);
-    return () => { cancelled = true; clearInterval(id); };
+    const probe = () =>
+      checkHealth().then((data) => {
+        if (!cancelled) setHealth(data);
+      });
+    probe();
+    const id = setInterval(probe, 15000);
+    const onVisible = () => document.visibilityState === "visible" && probe();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
-  if (dismissed || (health && health.status === "ok")) return null;
-  if (!health) return null; // be quiet while we don't know; banner shows once we do
+  if (health === "unknown") return null;
+  if (health && health.status === "ok") return null;
+  if (dismissed) return null;
+
+  const unreachable = health === null;
 
   return (
-    <div className="backend-banner" role="status">
-      <TriangleAlert />
-      <strong>Preview mode — no database</strong>
-      <span>Login &amp; incidents need MongoDB. Set `MONGO_URI` in `backend/.env` when ready.</span>
-      <button className="link-btn" onClick={() => setDismissed(true)} aria-label="Dismiss">
-        <X style={{ width: 14, height: 14 }} /> Dismiss
+    <div className="banner" data-tone={unreachable ? "error" : "warn"} role="status">
+      <Icon name="alert" size={16} />
+      <p>
+        <strong>{unreachable ? "Server unreachable" : "Preview mode — no database"}</strong>
+        <span>
+          {unreachable
+            ? " The API isn’t responding. Reports and live updates are paused."
+            : " Sign-in and incidents need MongoDB. Set MONGO_URI in backend/.env."}
+        </span>
+      </p>
+      <button type="button" className="icon-btn is-small" onClick={() => setDismissed(true)} aria-label="Dismiss">
+        <Icon name="x" size={14} />
       </button>
     </div>
   );

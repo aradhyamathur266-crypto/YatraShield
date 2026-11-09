@@ -1,101 +1,85 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { AlertCircle, CheckCircle2, MapPin, Siren, ShieldCheck, Users } from "lucide-react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { errorMessage, incidentApi } from "../api/api.js";
+import { Icon } from "../components/Icon.jsx";
+import { Notice, PageHead } from "../components/ui.jsx";
+import { locationLabel, useGeolocation } from "../hooks/useGeolocation.js";
 
 export default function SOS() {
-  const navigate = useNavigate();
-  const [location, setLocation] = useState(null);
-  const [locStatus, setLocStatus] = useState("Getting your current location...");
+  const geo = useGeolocation();
   const [sending, setSending] = useState(false);
-  const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState("success");
+  const [feedback, setFeedback] = useState(null);
   const [incidentId, setIncidentId] = useState(null);
 
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      queueMicrotask(() => setLocStatus("GPS not supported on this browser."));
+  async function onSend() {
+    setFeedback(null);
+    setIncidentId(null);
+    if (!geo.position) {
+      setFeedback({ tone: "error", text: "Location isn’t ready. Allow access and try again — or call 112 now." });
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => { setLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }); setLocStatus("Location ready"); },
-      () => setLocStatus("Location permission not granted."),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }, []);
-
-  async function onSend() {
-    setMessage("");
-    setIncidentId(null);
-    if (!location) { setMessage("Location not ready. Allow access and try again."); setMessageType("error"); return; }
     try {
       setSending(true);
       const res = await incidentApi.create({
         category: "other",
         description: "EMERGENCY SOS — life-threatening situation, immediate help needed",
-        location: { type: "Point", coordinates: [location.longitude, location.latitude] },
+        location: { type: "Point", coordinates: [geo.position[1], geo.position[0]] },
       });
-      const incident = res.data?.incident;
-      setIncidentId(incident?._id);
-      setMessage("SOS sent. A responder will be assigned shortly — keep this page open.");
-      setMessageType("success");
+      setIncidentId(res.data?.incident?._id);
+      setFeedback({ tone: "ok", text: "SOS sent. A responder will be assigned shortly — keep this page open." });
     } catch (err) {
-      setMessage(errorMessage(err, "SOS could not be sent. If you're in danger, call 112 directly."));
-      setMessageType("error");
+      setFeedback({ tone: "error", text: errorMessage(err, "SOS could not be sent. If you’re in danger, call 112 directly.") });
     } finally {
       setSending(false);
     }
   }
 
-  return (
-    <div className="sos-shell">
-      <div className="page-head" style={{ textAlign: "center" }}>
-        <span className="eyebrow" style={{ justifyContent: "center" }}>Emergency assistance</span>
-        <h1>Need immediate help?</h1>
-        <p style={{ marginInline: "auto" }}>Only for immediate danger. This creates a critical incident with your live location.</p>
-      </div>
+  const sent = Boolean(incidentId);
 
-      <div className="card card-pad" style={{ textAlign: "center" }}>
-        <p style={{ fontSize: 13, color: "var(--muted)", display: "flex", justifyContent: "center", gap: 7, alignItems: "center" }}>
-          <span className="live-dot" /> {locStatus}
-          {location && <span> · {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span>}
+  return (
+    <div className="page page-narrow sos-page">
+      <PageHead eyebrow="Emergency assistance" title={<>Need help <em>right now?</em></>} align="center">
+        Only for immediate danger. This creates a critical incident with your live location.
+      </PageHead>
+
+      <section className="card sos-card">
+        <p className="status-pill" data-state={geo.status}>
+          <i className="live-dot" /> {locationLabel(geo.status)}
+          {geo.position && <span className="mono"> · {geo.position[0].toFixed(4)}, {geo.position[1].toFixed(4)}</span>}
         </p>
 
-        <button className="sos-ring" onClick={onSend} disabled={sending} aria-label="Press for SOS">
-          {sending ? "SENDING..." : "PRESS FOR SOS"}
-        </button>
+        <div className="sos-stage" data-sent={sent}>
+          <span className="sos-ripple" aria-hidden="true" />
+          <span className="sos-ripple" aria-hidden="true" />
+          <span className="sos-ripple" aria-hidden="true" />
+          <button type="button" className="sos-button" onClick={onSend} disabled={sending || sent} aria-label="Send emergency SOS">
+            <Icon name={sent ? "check" : "beacon"} size={34} strokeWidth={1.4} />
+            <span>{sending ? "Sending…" : sent ? "Sent" : "Press for SOS"}</span>
+          </button>
+        </div>
 
-        {message && (
-          <div className={`alert ${messageType === "error" ? "alert-error" : "alert-success"}`} role="status" style={{ textAlign: "left" }}>
-            {messageType === "error" ? <AlertCircle /> : <CheckCircle2 />}
-            <span>{message}</span>
-          </div>
+        {feedback && <Notice tone={feedback.tone}>{feedback.text}</Notice>}
+        {sent && (
+          <Link to={`/incidents/${incidentId}`} className="btn btn-primary">
+            Track this incident <Icon name="arrowRight" size={16} />
+          </Link>
         )}
-        {incidentId && messageType === "success" && (
-          <button className="btn btn-dark" onClick={() => navigate(`/incidents/${incidentId}`)}>Track this incident <Siren style={{ width: 16, height: 16 }} /></button>
+        {(geo.status === "denied" || geo.status === "error") && (
+          <button type="button" className="btn btn-ghost" onClick={geo.retry}>Retry location</button>
         )}
 
-        <p style={{ marginTop: 14, fontSize: 12, color: "var(--muted)" }}>Your location is shared only with assigned responders.</p>
-      </div>
+        <a href="tel:112" className="call-112">
+          <Icon name="phone" size={18} />
+          <span><strong>Call 112</strong><small>Prefer a voice call? Emergency services answer directly.</small></span>
+        </a>
+      </section>
 
-      <div className="sos-info">
-        <div className="card">
-          <span className="quick-icon" style={{ background: "var(--surface-3)", color: "var(--text)", width: 36, height: 36 }}><MapPin style={{ width: 17, height: 17 }} /></span>
-          <h3>Location</h3><p>Your current position is attached to the emergency.</p>
-        </div>
-        <div className="card">
-          <span className="quick-icon" style={{ background: "var(--red-100)", color: "var(--red)", width: 36, height: 36 }}><Siren style={{ width: 17, height: 17 }} /></span>
-          <h3>Priority</h3><p>SOS is always critical — first in the queue.</p>
-        </div>
-        <div className="card">
-          <span className="quick-icon" style={{ background: "var(--emerald-100)", color: "var(--emerald-dark)", width: 36, height: 36 }}><Users style={{ width: 17, height: 17 }} /></span>
-          <h3>Response</h3><p>A nearby responder is assigned and notified instantly.</p>
-        </div>
-      </div>
-
-      <p style={{ display: "flex", justifyContent: "center", gap: 7, marginTop: 22, fontSize: 12, color: "var(--muted)" }}>
-        <ShieldCheck style={{ width: 14, height: 14 }} /> Prefer a call? Dial 112 — YatraShield doesn't replace emergency services.
-      </p>
+      <ul className="sos-facts">
+        <li><span className="mono">01</span><strong>Location</strong><p>Your current position is attached to the emergency.</p></li>
+        <li><span className="mono">02</span><strong>Priority</strong><p>SOS is always critical — first in every queue.</p></li>
+        <li><span className="mono">03</span><strong>Response</strong><p>Responders and supervisors are notified instantly.</p></li>
+      </ul>
+      <p className="fine-print">Your location is shared only with assigned responders. YatraShield doesn’t replace emergency services.</p>
     </div>
   );
 }

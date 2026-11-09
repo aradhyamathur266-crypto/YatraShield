@@ -1,99 +1,102 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { AlertCircle, LogOut, MapPin, Bell } from "lucide-react";
+import { Link } from "react-router-dom";
 import { errorMessage, userApi } from "../api/api.js";
+import { Icon } from "../components/Icon.jsx";
+import ThemeToggle from "../components/ThemeToggle.jsx";
+import { Notice, PageHead, Skeleton } from "../components/ui.jsx";
 import { useAuth } from "../context/useAuth.js";
+import { useTheme } from "../utils/theme.js";
+import { requestLogout } from "../utils/toast.js";
 
 export default function Profile() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { user } = useAuth();
+  const { isDark } = useTheme();
+  const [state, setState] = useState({ profile: null, loading: true, error: "" });
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await userApi.getProfile();
-        if (!cancelled) setProfile(res.data?.user || null);
-      } catch (err) {
-        if (!cancelled) setError(errorMessage(err, "Failed to load profile."));
-      } finally { if (!cancelled) setLoading(false); }
-    })();
-    return () => { cancelled = true; };
+    userApi
+      .getProfile()
+      .then((res) => {
+        if (!cancelled) setState({ profile: res.data?.user || null, loading: false, error: "" });
+      })
+      .catch((err) => {
+        if (!cancelled) setState({ profile: null, loading: false, error: errorMessage(err, "Failed to load profile.") });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  function onLogout() {
-    if (!window.confirm("Log out of YatraShield?")) return;
-    logout();
-    navigate("/login");
-  }
-
+  const { profile, loading, error } = state;
   const name = profile?.name || user?.name || "User";
   const email = profile?.email || user?.email || "";
   const role = profile?.role || user?.role || "tourist";
-  const initials = name.charAt(0).toUpperCase();
 
   return (
-    <div style={{ maxWidth: 760 }}>
-      <div className="page-head">
-        <span className="eyebrow">Account</span>
-        <h1>Your profile</h1>
-        <p>Account information loaded from the server.</p>
-      </div>
+    <div className="page page-narrow">
+      <PageHead eyebrow="Account" title={<>Your <em>profile.</em></>}>
+        Account information loaded from the server.
+      </PageHead>
 
-      {error && <div className="alert alert-error" role="alert"><AlertCircle />{error}</div>}
+      {error && <Notice tone="error">{error}</Notice>}
 
-      <div className="card card-pad">
+      <section className="card card-pad">
         <div className="profile-head">
-          <span className="avatar-lg">{initials}</span>
+          <span className="avatar avatar-lg" aria-hidden="true">{name.charAt(0).toUpperCase()}</span>
           <div>
-            <h2 style={{ fontSize: 20 }}>{name}</h2>
-            <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>{email}</p>
-            <span className="role-chip" style={{ marginTop: 8 }}>{role}</span>
+            <h2>{name}</h2>
+            <p>{email}</p>
           </div>
-          <span className="pill pill-resolved" style={{ marginLeft: "auto" }}><span className="live-dot" /> Active</span>
+          <span className="chip" data-tone="ok"><i className="chip-dot" /> Active</span>
         </div>
-
-        <div style={{ height: 1, background: "var(--line)", margin: "22px 0" }} />
 
         {loading ? (
-          <div style={{ display: "grid", gap: 12 }}>
-            <div className="skeleton" style={{ height: 44 }} />
-            <div className="skeleton" style={{ height: 44 }} />
-          </div>
+          <div className="facts-skeleton"><Skeleton height={52} /><Skeleton height={52} /></div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div className="coord"><span>Full name</span><strong>{name}</strong></div>
-            <div className="coord"><span>Email</span><strong style={{ fontSize: 13 }}>{email || "—"}</strong></div>
-            <div className="coord"><span>Role</span><strong>{role}</strong></div>
-            <div className="coord"><span>Member since</span><strong>{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "—"}</strong></div>
-          </div>
+          <dl className="facts facts-grid">
+            <div><dt>Full name</dt><dd>{name}</dd></div>
+            <div><dt>Email</dt><dd>{email || "—"}</dd></div>
+            <div><dt>Role</dt><dd className="cap">{role}</dd></div>
+            <div><dt>Member since</dt><dd>{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString([], { dateStyle: "medium" }) : "—"}</dd></div>
+          </dl>
         )}
+      </section>
 
-        <div style={{ display: "grid", gap: 10, marginTop: 22 }}>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", padding: 14, borderRadius: 12, background: "var(--surface-2)", border: "1px solid var(--line)" }}>
-            <MapPin style={{ width: 18, height: 18, color: "var(--emerald-dark)" }} />
-            <div style={{ flex: 1 }}><strong style={{ fontSize: 13 }}>Location sharing</strong><p style={{ fontSize: 12, color: "var(--muted)" }}>Used to attach your position to reports.</p></div>
-            <span className="pill pill-resolved">On</span>
-          </div>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", padding: 14, borderRadius: 12, background: "var(--surface-2)", border: "1px solid var(--line)" }}>
-            <Bell style={{ width: 18, height: 18, color: "var(--emerald-dark)" }} />
-            <div style={{ flex: 1 }}><strong style={{ fontSize: 13 }}>Safety notifications</strong><p style={{ fontSize: 12, color: "var(--muted)" }}>Real-time status updates for your incidents.</p></div>
-            <span className="pill pill-resolved">On</span>
-          </div>
-        </div>
+      <section className="card">
+        <ul className="settings">
+          <li>
+            <Icon name="moon" size={18} />
+            <div><strong>Appearance</strong><span>Currently {isDark ? "dark" : "light"}. Follows your device until you change it.</span></div>
+            <ThemeToggle />
+          </li>
+          <li>
+            <Icon name="pin" size={18} />
+            <div><strong>Location sharing</strong><span>Used to attach your position to reports.</span></div>
+            <span className="chip" data-tone="ok"><i className="chip-dot" /> On report</span>
+          </li>
+          <li>
+            <Icon name="bell" size={18} />
+            <div><strong>Live notifications</strong><span>Real-time status updates while the app is open.</span></div>
+            <span className="chip" data-tone="ok"><i className="chip-dot" /> On</span>
+          </li>
+          <li>
+            <Icon name="guide" size={18} />
+            <div><strong>Safety guide</strong><span>Tips and emergency numbers.</span></div>
+            <Link to="/safety" className="btn btn-sm btn-ghost">Open</Link>
+          </li>
+        </ul>
+      </section>
 
-        <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
-          <button className="btn btn-danger" onClick={onLogout}><LogOut style={{ width: 16, height: 16 }} /> Log out</button>
-        </div>
+      <div className="profile-actions">
+        <button type="button" className="btn btn-ghost" onClick={requestLogout}>
+          <Icon name="logout" size={16} /> Log out
+        </button>
       </div>
 
-      <div className="card" style={{ marginTop: 20, padding: 18, fontSize: 13, color: "var(--muted)", display: "flex", gap: 12, alignItems: "center" }}>
-        <span style={{ fontSize: 18 }}>🔒</span>
-        <span><strong style={{ color: "var(--text)" }}>Your privacy matters.</strong> Location and incident data are only visible to users involved in your safety response.</span>
-      </div>
+      <p className="fine-print left">
+        <Icon name="lock" size={13} /> Location and incident data are only visible to the people involved in your safety response.
+      </p>
     </div>
   );
 }

@@ -1,66 +1,41 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { FilePlus2, History } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { errorMessage, incidentApi } from "../api/api.js";
-import { subscribeToIncidentEvents } from "../api/socket.js";
+import { Icon } from "../components/Icon.jsx";
+import { Empty, ListSkeleton, Notice, PageHead, PriorityChip, Segmented, Select, StatusChip } from "../components/ui.jsx";
 import { useAuth } from "../context/useAuth.js";
+import { modeForRole, useIncidents } from "../hooks/useIncidents.js";
+import { toast } from "../utils/toast.js";
 import {
-  NEXT_STATUSES, categoryLabel, formatCoordinates, formatTime, isResolved,
-  priorityLabel, responderName, shortId, statusLabel,
+  NEXT_STATUSES, categoryLabel, formatCoordinates, isResolved, responderName, shortId, statusLabel, timeAgo,
 } from "../utils/incidents.js";
+
+const COPY = {
+  all: { eyebrow: "Authority records", title: "All incidents", sub: "Review reported incidents and monitor response progress." },
+  assigned: { eyebrow: "Responder", title: "Assigned to me", sub: "Cases assigned to you. Update status as you respond." },
+  mine: { eyebrow: "History", title: "My incidents", sub: "Track the status of incidents you reported." },
+};
+
+const STEPS = [
+  ["Reported", "Your report is in the queue."],
+  ["Assigned", "A responder is on the case."],
+  ["On scene", "A responder has arrived."],
+  ["Resolved", "The case is marked complete."],
+];
 
 export default function MyIncidents() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [incidents, setIncidents] = useState([]);
+  const mode = modeForRole(user?.role);
+  const { incidents, setIncidents, loading, error, setError, refresh } = useIncidents(mode);
   const [filter, setFilter] = useState("All");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(null);
-
-  const fetchMode = user?.role === "supervisor" || user?.role === "admin" ? "all"
-    : user?.role === "responder" ? "assigned" : "mine";
-
-  const fetchIncidents = useCallback(async (opts = {}) => {
-    if (opts.spin) setLoading(true);
-    setError("");
-    try {
-      const res = fetchMode === "all" ? await incidentApi.getAll()
-        : fetchMode === "assigned" ? await incidentApi.getAssigned()
-        : await incidentApi.getMine();
-      setIncidents(res.data?.incidents || []);
-    } catch (err) {
-      setError(errorMessage(err, "Failed to load incidents."));
-      setIncidents([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchMode]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = fetchMode === "all" ? await incidentApi.getAll()
-          : fetchMode === "assigned" ? await incidentApi.getAssigned()
-          : await incidentApi.getMine();
-        if (!cancelled) setIncidents(res.data?.incidents || []);
-      } catch (err) {
-        if (!cancelled) { setError(errorMessage(err, "Failed to load incidents.")); setIncidents([]); }
-      } finally { if (!cancelled) setLoading(false); }
-    })();
-    return () => { cancelled = true; };
-  }, [fetchMode]);
-
-  useEffect(() => subscribeToIncidentEvents({
-    "incident:status_updated": () => fetchIncidents(),
-    "incident:assigned": () => fetchIncidents(),
-    "incident:reassigned": () => fetchIncidents(),
-  }), [fetchIncidents]);
 
   const active = useMemo(() => incidents.filter((i) => !isResolved(i.status)), [incidents]);
   const resolved = useMemo(() => incidents.filter((i) => isResolved(i.status)), [incidents]);
   const filtered = filter === "Active" ? active : filter === "Resolved" ? resolved : incidents;
+  const canUpdate = mode === "assigned" || mode === "all";
+  const copy = COPY[mode];
 
   async function onStatus(incident, next) {
     if (!next || next === incident.status) return;
@@ -69,6 +44,7 @@ export default function MyIncidents() {
     try {
       const res = await incidentApi.updateStatus(incident._id, next);
       setIncidents((prev) => prev.map((i) => (i._id === incident._id ? res.data.incident : i)));
+      toast(`${shortId(incident)} → ${statusLabel(next)}`);
     } catch (err) {
       setError(errorMessage(err, "Update failed — you may not be authorized for this transition."));
     } finally {
@@ -76,108 +52,120 @@ export default function MyIncidents() {
     }
   }
 
-  const title = fetchMode === "all" ? "All incidents" : fetchMode === "assigned" ? "Assigned to me" : "My incidents";
-  const sub = fetchMode === "all" ? "Review reported incidents and monitor response progress."
-    : fetchMode === "assigned" ? "Cases assigned to you. Update status as you respond."
-    : "Track the status of incidents you reported.";
-
   return (
-    <div>
-      <div className="page-head page-head-row">
-        <div>
-          <span className="eyebrow">{fetchMode === "all" ? "Authority records" : fetchMode === "assigned" ? "Responder" : "History"}</span>
-          <h1>{title}</h1>
-          <p>{sub}</p>
-        </div>
-        {fetchMode !== "all" && (
-          <button className="btn btn-primary" onClick={() => navigate("/report")}><FilePlus2 style={{ width: 16, height: 16 }} /> Report incident</button>
-        )}
+    <div className="page">
+      <PageHead
+        eyebrow={copy.eyebrow}
+        title={copy.title}
+        actions={
+          mode !== "all" && (
+            <Link to="/report" className="btn btn-primary"><Icon name="plus" size={16} /> Report incident</Link>
+          )
+        }
+      >
+        {copy.sub}
+      </PageHead>
+
+      <div className="metrics metrics-3">
+        <div className="metric"><span className="metric-label">Total</span><span className="metric-num">{incidents.length}</span><span className="metric-sub">{mode === "all" ? "All records" : "Reports"}</span></div>
+        <div className="metric"><span className="metric-label">Active</span><span className="metric-num">{active.length}</span><span className="metric-sub">Awaiting resolution</span></div>
+        <div className="metric"><span className="metric-label">Resolved</span><span className="metric-num">{resolved.length}</span><span className="metric-sub">Completed</span></div>
       </div>
 
-      <div className="stat-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-        <div className="card stat"><div className="stat-top">Total</div><div className="stat-num">{incidents.length}</div><div className="stat-sub">{fetchMode === "all" ? "All records" : "Reports"}</div></div>
-        <div className="card stat"><div className="stat-top">Active</div><div className="stat-num">{active.length}</div><div className="stat-sub">Awaiting resolution</div></div>
-        <div className="card stat"><div className="stat-top">Resolved</div><div className="stat-num">{resolved.length}</div><div className="stat-sub">Completed reports</div></div>
-      </div>
+      {error && <Notice tone="error" onDismiss={() => setError("")}>{error}</Notice>}
 
-      {error && <div className="alert alert-error" role="alert">{error}</div>}
-
-      <div className="card">
+      <section className="card">
         <div className="card-head">
-          <div className="filter-row">
-            {["All", "Active", "Resolved"].map((opt) => (
-              <button key={opt} className={`filter-btn ${filter === opt ? "active" : ""}`} onClick={() => setFilter(opt)}>
-                {opt} <span>{opt === "All" ? incidents.length : opt === "Active" ? active.length : resolved.length}</span>
-              </button>
-            ))}
-          </div>
-          <button className="btn btn-soft btn-sm" onClick={() => fetchIncidents({ spin: true })}>Refresh</button>
+          <Segmented
+            label="Filter incidents"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: "All", label: "All", count: incidents.length },
+              { value: "Active", label: "Active", count: active.length },
+              { value: "Resolved", label: "Resolved", count: resolved.length },
+            ]}
+          />
+          <button type="button" className="btn btn-sm btn-ghost" onClick={refresh}>
+            <Icon name="refresh" size={14} /> Refresh
+          </button>
         </div>
 
         {loading ? (
-          <div style={{ padding: 22, display: "grid", gap: 12 }}>
-            <div className="skeleton" style={{ height: 18, width: "70%" }} />
-            <div className="skeleton" style={{ height: 18, width: "55%" }} />
-            <div className="skeleton" style={{ height: 18, width: "62%" }} />
-          </div>
+          <ListSkeleton rows={4} />
         ) : filtered.length === 0 ? (
-          <div className="empty">
-            <div className="empty-icon"><History /></div>
-            <h3>No {filter === "All" ? "" : filter.toLowerCase() + " "}incidents</h3>
-            <p>{filter === "All" ? "Reports will appear here." : "Nothing in this view right now."}</p>
-            {fetchMode === "mine" && filter === "All" && (
-              <button className="btn btn-primary" onClick={() => navigate("/report")}><FilePlus2 style={{ width: 16, height: 16 }} /> Report an incident</button>
-            )}
-          </div>
+          <Empty
+            icon="ledger"
+            title={`No ${filter === "All" ? "" : `${filter.toLowerCase()} `}incidents`}
+            action={
+              mode === "mine" && filter === "All" ? (
+                <Link to="/report" className="btn btn-primary"><Icon name="plus" size={16} /> Report an incident</Link>
+              ) : null
+            }
+          >
+            {filter === "All" ? "Reports will appear here." : "Nothing in this view right now."}
+          </Empty>
         ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead><tr><th>Incident</th><th>Location</th><th>Reported</th><th>Responder</th><th>Priority</th><th>Status</th>
-                {(fetchMode === "assigned" || fetchMode === "all") && <th>Update</th>}
-              </tr></thead>
+          <div className="table-scroll">
+            <table className="ledger">
+              <thead>
+                <tr>
+                  <th>Incident</th><th>Location</th><th>Reported</th><th>Responder</th><th>Priority</th><th>Status</th>
+                  {canUpdate && <th>Update</th>}
+                </tr>
+              </thead>
               <tbody>
-                {filtered.map((inc) => (
-                  <tr key={inc._id} className="row-clickable" onClick={() => navigate(`/incidents/${inc._id}`)}>
-                    <td>
-                      <span className="id-mono">{shortId(inc)}</span>
-                      <strong style={{ display: "block", marginTop: 3 }}>{categoryLabel(inc.category)}</strong>
-                      <span className="table-secondary">{inc.description}</span>
-                    </td>
-                    <td style={{ color: "var(--muted)" }}>{formatCoordinates(inc)}</td>
-                    <td style={{ color: "var(--muted)" }}>{formatTime(inc)}</td>
-                    <td>{responderName(inc)}</td>
-                    <td><span className={`pill pill-${(inc.priority || "medium").toLowerCase()}`}>{priorityLabel(inc.priority)}</span></td>
-                    <td><span className={`pill pill-${statusLabel(inc.status).toLowerCase().replaceAll(" ", "-")}`}>{statusLabel(inc.status)}</span></td>
-                    {(fetchMode === "assigned" || fetchMode === "all") && (
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <select className="select" value={inc.status} disabled={busy === inc._id || !(NEXT_STATUSES[inc.status] || []).length}
-                          onChange={(e) => onStatus(inc, e.target.value)} aria-label={`Update ${shortId(inc)}`}>
-                          <option value={inc.status}>{statusLabel(inc.status)}</option>
-                          {(NEXT_STATUSES[inc.status] || []).map((s) => <option key={s} value={s}>→ {statusLabel(s)}</option>)}
-                        </select>
+                {filtered.map((inc) => {
+                  const next = NEXT_STATUSES[inc.status] || [];
+                  return (
+                    <tr key={inc._id} className="is-link" onClick={() => navigate(`/incidents/${inc._id}`)}>
+                      <td data-label="Incident" className="cell-main">
+                        <span className="mono id">{shortId(inc)}</span>
+                        <Link to={`/incidents/${inc._id}`} className="cell-title" onClick={(e) => e.stopPropagation()}>
+                          {categoryLabel(inc.category)}
+                        </Link>
+                        <span className="cell-sub clamp-1">{inc.description}</span>
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td data-label="Location" className="mono cell-muted">{formatCoordinates(inc)}</td>
+                      <td data-label="Reported" className="cell-muted">{timeAgo(inc)}</td>
+                      <td data-label="Responder">{responderName(inc)}</td>
+                      <td data-label="Priority"><PriorityChip priority={inc.priority} /></td>
+                      <td data-label="Status"><StatusChip status={inc.status} /></td>
+                      {canUpdate && (
+                        <td data-label="Update" onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            value={inc.status}
+                            disabled={busy === inc._id || next.length === 0}
+                            onChange={(e) => onStatus(inc, e.target.value)}
+                            aria-label={`Update status of ${shortId(inc)}`}
+                          >
+                            <option value={inc.status}>{statusLabel(inc.status)}</option>
+                            {next.map((s) => <option key={s} value={s}>→ {statusLabel(s)}</option>)}
+                          </Select>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
-      </div>
+      </section>
 
-      {fetchMode === "mine" && (
-        <div className="card" style={{ marginTop: 20, padding: 22 }}>
-          <h3 style={{ fontSize: 15 }}>Response progress</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 16 }} className="step-grid" >
-            {[["Reported", "Your report was submitted."], ["Assigned", "A responder is on the case."], ["On scene", "Responder has arrived."], ["Resolved", "Marked complete."]].map(([t, d], i) => (
-              <div key={t} style={{ padding: 14, borderRadius: 12, background: "var(--surface-2)", border: "1px solid var(--line)" }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: "var(--emerald-dark)" }}>0{i + 1}</span>
-                <strong style={{ display: "block", marginTop: 6, fontSize: 13 }}>{t}</strong>
-                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>{d}</p>
-              </div>
+      {mode === "mine" && (
+        <section className="card card-pad">
+          <h2 className="card-title">How a response unfolds</h2>
+          <ol className="steps">
+            {STEPS.map(([t, d], i) => (
+              <li key={t}>
+                <span className="mono steps-no">0{i + 1}</span>
+                <strong>{t}</strong>
+                <p>{d}</p>
+              </li>
             ))}
-          </div>
-        </div>
+          </ol>
+        </section>
       )}
     </div>
   );

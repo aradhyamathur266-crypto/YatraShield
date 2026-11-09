@@ -1,20 +1,24 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppShell from "./components/AppShell";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { useAuth } from "./context/useAuth.js";
-import Landing from "./pages/Landing";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import TouristDashboard from "./pages/TouristDashboard";
-import ReportIncident from "./pages/ReportIncident";
-import SOS from "./pages/SOS";
-import MyIncidents from "./pages/MyIncidents";
-import IncidentDetail from "./pages/IncidentDetail";
-import SafetyInfo from "./pages/SafetyInfo";
-import Profile from "./pages/Profile";
-import AuthorityDashboard from "./pages/AuthorityDashboard";
+import { startSmoothScroll } from "./utils/smooth-scroll.js";
+
+// Route-level code splitting keeps the first paint small; the map bundle
+// only loads on pages that actually render one.
+const Landing = lazy(() => import("./pages/Landing"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const TouristDashboard = lazy(() => import("./pages/TouristDashboard"));
+const ReportIncident = lazy(() => import("./pages/ReportIncident"));
+const SOS = lazy(() => import("./pages/SOS"));
+const MyIncidents = lazy(() => import("./pages/MyIncidents"));
+const IncidentDetail = lazy(() => import("./pages/IncidentDetail"));
+const SafetyInfo = lazy(() => import("./pages/SafetyInfo"));
+const Profile = lazy(() => import("./pages/Profile"));
+const AuthorityDashboard = lazy(() => import("./pages/AuthorityDashboard"));
 
 function Home() {
   const { user } = useAuth();
@@ -29,38 +33,33 @@ function Root() {
   return <Landing />;
 }
 
-function AppShellWithTheme() {
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("yatrashield-theme") === "dark");
-  useEffect(() => {
-    document.body.classList.toggle("dark-theme", darkMode);
-    localStorage.setItem("yatrashield-theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
-  return <AppShell darkMode={darkMode} onToggleTheme={() => setDarkMode((v) => !v)} />;
-}
-
 function App() {
+  useEffect(() => startSmoothScroll(), []);
+
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          {/* Public */}
-          <Route path="/" element={<Root />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+        <Suspense fallback={<div className="boot" aria-busy="true" />}>
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<Root />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-          {/* Protected — app shell */}
-          <Route element={<ProtectedRoute><AppShellWithTheme /></ProtectedRoute>}>
-            <Route path="/app" element={<Home />} />
-            <Route path="/report" element={<ReportIncident />} />
-            <Route path="/sos" element={<SOS />} />
-            <Route path="/incidents" element={<MyIncidents />} />
-            <Route path="/incidents/:id" element={<IncidentDetail />} />
-            <Route path="/safety" element={<SafetyInfo />} />
-            <Route path="/profile" element={<Profile />} />
-          </Route>
+            {/* Protected — app shell */}
+            <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
+              <Route path="/app" element={<Home />} />
+              <Route path="/report" element={<ReportIncident />} />
+              <Route path="/sos" element={<SOS />} />
+              <Route path="/incidents" element={<MyIncidents />} />
+              <Route path="/incidents/:id" element={<IncidentDetail />} />
+              <Route path="/safety" element={<SafetyInfo />} />
+              <Route path="/profile" element={<Profile />} />
+            </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );
