@@ -1,176 +1,183 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { CATEGORIES, CATEGORY_LABELS, shortId } from "../utils/incidents.js";
+import { lazy, Suspense, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { errorMessage, incidentApi } from "../api/api.js";
+import { Icon } from "../components/Icon.jsx";
+import { Notice, PageHead, Skeleton } from "../components/ui.jsx";
+import { locationLabel, useGeolocation } from "../hooks/useGeolocation.js";
+import { shortId } from "../utils/incidents.js";
 
-function ReportIncident() {
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    category: "",
-    description: "",
-    emergency: false,
-    location: null,
-  });
+const MapView = lazy(() => import("../components/MapView.jsx"));
 
-  const [locationStatus, setLocationStatus] = useState("Getting your current location...");
-  const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState("success");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [lastCreated, setLastCreated] = useState(null);
+const CATEGORY_OPTIONS = [
+  { value: "medical", label: "Medical", hint: "Injury, illness" },
+  { value: "accident", label: "Accident", hint: "Road, fall, collision" },
+  { value: "crime", label: "Crime", hint: "Theft, assault" },
+  { value: "lost_person", label: "Lost / missing", hint: "Person or child" },
+  { value: "fire", label: "Fire", hint: "Smoke, flames" },
+  { value: "harassment", label: "Harassment", hint: "Threats, stalking" },
+  { value: "natural_disaster", label: "Natural disaster", hint: "Flood, quake" },
+  { value: "other", label: "Other", hint: "Anything else" },
+];
 
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      queueMicrotask(() => setLocationStatus("Location services are not supported by this browser."));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setFormData((prev) => ({
-          ...prev,
-          location: {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          },
-        }));
-        setLocationStatus("Current location captured");
-      },
-      () => setLocationStatus("Location permission was not granted."),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }, []);
+export default function ReportIncident() {
+  const geo = useGeolocation();
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [emergency, setEmergency] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState(null); // { tone, text }
+  const [created, setCreated] = useState(null);
 
-  function handleChange(event) {
-    const { name, value, type, checked } = event.target;
-    setFormData((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
-    setMessage("");
-  }
+  const markers = useMemo(
+    () => (geo.position ? [{ id: "you", position: geo.position, kind: "you", tone: "you", label: "Report location" }] : []),
+    [geo.position]
+  );
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setMessage("");
-    setLastCreated(null);
+  async function onSubmit(e) {
+    e.preventDefault();
+    setFeedback(null);
+    setCreated(null);
+    if (!category) return setFeedback({ tone: "error", text: "Pick a category first." });
+    if (!description.trim()) return setFeedback({ tone: "error", text: "Describe what happened." });
+    if (!geo.position) return setFeedback({ tone: "error", text: "Location is required. Allow location access and try again." });
 
-    if (!formData.category) return setMessage("Please select an incident category."), setMessageType("error");
-    if (!formData.description.trim()) return setMessage("Please describe what happened."), setMessageType("error");
-    if (!formData.location) {
-      setMessage("Your location could not be captured. Please allow location access and try again.");
-      setMessageType("error");
-      return;
-    }
-
-    const description = formData.description.trim();
-    // Emergency checkbox upgrades the description with a critical keyword so the
-    // backend priority engine resolves it as "critical".
-    const finalDescription = formData.emergency
-      ? `EMERGENCY — currently in immediate danger: ${description}`
-      : description;
-
-    const payload = {
-      category: formData.category,
-      description: finalDescription,
-      // Backend expects GeoJSON Point: coordinates are [longitude, latitude].
-      location: {
-        type: "Point",
-        coordinates: [formData.location.longitude, formData.location.latitude],
-      },
-    };
+    const finalDescription = emergency
+      ? `EMERGENCY — currently in immediate danger: ${description.trim()}`
+      : description.trim();
 
     try {
-      setIsSubmitting(true);
-      const res = await incidentApi.create(payload);
+      setSubmitting(true);
+      const res = await incidentApi.create({
+        category,
+        description: finalDescription,
+        location: { type: "Point", coordinates: [geo.position[1], geo.position[0]] },
+      });
       const incident = res.data?.incident;
-      setLastCreated(incident);
-      setMessage(
-        incident
-          ? `Incident ${shortId(incident)} reported successfully. Priority: ${(incident.priority || "").toUpperCase()}.`
-          : "Incident reported successfully."
-      );
-      setMessageType("success");
-      setFormData({ category: "", description: "", emergency: false, location: formData.location });
+      setCreated(incident);
+      setFeedback({
+        tone: "ok",
+        text: incident
+          ? `Incident ${shortId(incident)} reported. Priority: ${(incident.priority || "").toUpperCase()}.`
+          : "Incident reported successfully.",
+      });
+      setCategory("");
+      setDescription("");
+      setEmergency(false);
     } catch (err) {
-      setMessage(errorMessage(err, "The incident could not be submitted. Is the backend running?"));
-      setMessageType("error");
+      setFeedback({ tone: "error", text: errorMessage(err, "Could not submit. Is the backend running?") });
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   }
 
   return (
-    <div className="report-page">
-      <div className="page-header">
-        <p className="section-label">SAFETY REPORT</p>
-        <h1>Report an incident</h1>
-        <p>Share the details below so the response team can review your report.</p>
-      </div>
+    <div className="page page-narrow">
+      <PageHead eyebrow="Safety report" title={<>Report an <em>incident.</em></>}>
+        Structured reports get triaged faster. Priority is calculated automatically.
+      </PageHead>
 
-      <form className="report-form-card" onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="category">Incident category</label>
-          <select id="category" name="category" value={formData.category} onChange={handleChange} required>
-            <option value="">Select incident category</option>
-            {CATEGORIES.map((key) => (
-              <option key={key} value={key}>{CATEGORY_LABELS[key]}</option>
+      <form onSubmit={onSubmit} className="card card-pad form-stack" noValidate>
+        <fieldset className="field">
+          <legend>Category</legend>
+          <div className="cat-grid">
+            {CATEGORY_OPTIONS.map(({ value, label, hint }, i) => (
+              <button
+                key={value}
+                type="button"
+                className="cat"
+                aria-pressed={category === value}
+                onClick={() => {
+                  setCategory(value);
+                  setFeedback(null);
+                }}
+              >
+                <span className="mono cat-no">{String(i + 1).padStart(2, "0")}</span>
+                <span className="cat-label">{label}</span>
+                <span className="cat-hint">{hint}</span>
+              </button>
             ))}
-          </select>
-        </div>
+          </div>
+        </fieldset>
 
-        <div className="form-group">
-          <label htmlFor="description">Description</label>
+        <label className="field" htmlFor="desc">
+          <span>Description</span>
           <textarea
-            id="description"
-            name="description"
-            rows="5"
-            value={formData.description}
-            onChange={handleChange}
-            placeholder="Describe what happened..."
-            required
+            id="desc"
+            rows={5}
+            maxLength={1000}
+            placeholder="What happened, where exactly, and how many people are involved…"
+            value={description}
+            onChange={(e) => {
+              setDescription(e.target.value);
+              setFeedback(null);
+            }}
           />
-          <small>Priority is calculated automatically by the server from your description.</small>
-        </div>
-
-        <label
-          className={`emergency-option emergency-option-clean ${formData.emergency ? "emergency-option-active" : ""}`}
-          htmlFor="emergency"
-        >
-          <span className="emergency-option-symbol" aria-hidden="true">!</span>
-          <span className="emergency-option-content">
-            <strong>Immediate danger</strong>
-            <span>Select this if you or someone else is currently in danger.</span>
-          </span>
-          <span className="emergency-checkbox">
-            <input type="checkbox" id="emergency" name="emergency" checked={formData.emergency} onChange={handleChange} />
-            <span className="emergency-checkbox-visual" aria-hidden="true">✓</span>
-          </span>
+          <small>{description.length}/1000 · Words like “unconscious” or “trapped” raise priority automatically.</small>
         </label>
 
-        <div className="location-box">
-          <span className="location-icon">📍</span>
+        <div className="switch-row" data-on={emergency}>
           <div>
-            <h3>Location</h3>
-            <p>{locationStatus}</p>
-            {formData.location && (
-              <small>
-                Latitude: {formData.location.latitude.toFixed(6)} {" • "} Longitude: {formData.location.longitude.toFixed(6)}
-              </small>
+            <strong>Immediate danger</strong>
+            <small>Someone is in danger or unable to move. Escalates priority to critical.</small>
+          </div>
+          <button
+            type="button"
+            className="switch"
+            role="switch"
+            aria-checked={emergency}
+            aria-label="Immediate danger"
+            onClick={() => setEmergency((s) => !s)}
+          >
+            <i />
+          </button>
+        </div>
+
+        <div className="loc-card">
+          <div className="loc-map">
+            {geo.position ? (
+              <Suspense fallback={<Skeleton height="100%" />}>
+                <MapView
+                  className="map-fill"
+                  markers={markers}
+                  initialCenter={geo.position}
+                  zoom={16}
+                  interactive={false}
+                  label="Report location preview"
+                />
+              </Suspense>
+            ) : (
+              <div className="loc-placeholder"><Icon name="pin" size={22} /></div>
+            )}
+          </div>
+          <div className="loc-meta">
+            <p className="eyebrow">Location</p>
+            <strong>{locationLabel(geo.status)}</strong>
+            {geo.position && (
+              <span className="mono">
+                {geo.position[0].toFixed(5)}, {geo.position[1].toFixed(5)}
+                {geo.accuracy ? ` · ±${Math.round(geo.accuracy)} m` : ""}
+              </span>
+            )}
+            {(geo.status === "denied" || geo.status === "error") && (
+              <button type="button" className="btn btn-sm btn-ghost" onClick={geo.retry}>Try again</button>
             )}
           </div>
         </div>
 
-        <button type="submit" className="submit-report" disabled={isSubmitting}>
-          {isSubmitting ? "Submitting..." : "Submit Incident"}
-        </button>
-
-        {message && (
-          <p className={`form-message ${messageType === "error" ? "error-message" : "success-message"}`} role="status">
-            {message}
-            {lastCreated && messageType === "success" && (
-              <> <button type="button" className="link-button" onClick={() => navigate("/incidents")}>View my incidents →</button></>
+        {feedback && (
+          <Notice tone={feedback.tone}>
+            {feedback.text}
+            {created && feedback.tone === "ok" && (
+              <> <Link to={`/incidents/${created._id}`} className="inline-link">Track it <Icon name="arrowRight" size={13} /></Link></>
             )}
-          </p>
+          </Notice>
         )}
+
+        <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={submitting}>
+          {submitting ? "Submitting…" : "Submit incident"}
+        </button>
+        <p className="fine-print">Evidence uploads are coming soon. Reports are stored securely on the server.</p>
       </form>
     </div>
   );
 }
-
-export default ReportIncident;

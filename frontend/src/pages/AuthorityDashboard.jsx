@@ -1,375 +1,258 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { errorMessage, incidentApi, userApi } from "../api/api.js";
-import { subscribeToIncidentEvents } from "../api/socket.js";
+import { Icon } from "../components/Icon.jsx";
+import { Empty, ListSkeleton, Notice, PageHead, PriorityChip, Select, Skeleton, StatusChip } from "../components/ui.jsx";
+import { useIncidents } from "../hooks/useIncidents.js";
+import { incidentLatLng } from "../utils/geo.js";
 import {
-  NEXT_STATUSES,
-  STATUSES,
-  categoryLabel,
-  formatCoordinates,
-  formatTime,
-  isResolved,
-  priorityLabel,
-  reportedByName,
-  shortId,
-  statusLabel,
+  NEXT_STATUSES, STATUSES, categoryLabel, formatCoordinates, isResolved, priorityTone, reportedByName, shortId,
+  statusLabel, timeAgo,
 } from "../utils/incidents.js";
+import { toast } from "../utils/toast.js";
 
-function AuthorityDashboard() {
+const MapView = lazy(() => import("../components/MapView.jsx"));
+
+const canAssign = (status) => ["TRIAGED", "ESCALATED", "ASSIGNED"].includes(status);
+const assignedId = (inc) => inc.assignedResponder?._id || inc.assignedResponder || "";
+
+export default function AuthorityDashboard() {
+  const navigate = useNavigate();
+  const { incidents, setIncidents, loading, error, setError, refresh } = useIncidents("all");
+  const [responders, setResponders] = useState([]);
   const [priorityFilter, setPriorityFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [selectedIncidentId, setSelectedIncidentId] = useState(null);
-  const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState("success");
-
-  const [incidents, setIncidents] = useState([]);
-  const [responders, setResponders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [assignedBusy, setAssignedBusy] = useState(null);
-  const [statusBusy, setStatusBusy] = useState(null);
-
-  const fetchAll = useCallback(async (options = {}) => {
-    if (options.spin) setLoading(true);
-    try {
-      const [incidentsRes, respondersRes] = await Promise.all([
-        incidentApi.getAll(),
-        userApi.listResponders().catch(() => ({ data: { responders: [] } })),
-      ]);
-      setIncidents(incidentsRes.data?.incidents || []);
-      setResponders(respondersRes.data?.responders || []);
-    } catch (err) {
-      setMessage(errorMessage(err, "Failed to load incidents. Is the backend running?"));
-      setMessageType("error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [busyAssign, setBusyAssign] = useState(null);
+  const [busyStatus, setBusyStatus] = useState(null);
 
   useEffect(() => {
-    // Initial load: fetch inline so state updates happen in async callbacks,
-    // not synchronously in the effect body.
     let cancelled = false;
-    async function loadInitial() {
-      try {
-        const [incidentsRes, respondersRes] = await Promise.all([
-          incidentApi.getAll(),
-          userApi.listResponders().catch(() => ({ data: { responders: [] } })),
-        ]);
-        if (cancelled) return;
-        setIncidents(incidentsRes.data?.incidents || []);
-        setResponders(respondersRes.data?.responders || []);
-      } catch (err) {
-        if (cancelled) return;
-        setMessage(errorMessage(err, "Failed to load incidents. Is the backend running?"));
-        setMessageType("error");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    loadInitial();
+    userApi
+      .listResponders()
+      .then((res) => {
+        if (!cancelled) setResponders(res.data?.responders || []);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = subscribeToIncidentEvents({
-      "incident:status_updated": () => fetchAll(),
-      "incident:assigned": () => fetchAll(),
-      "incident:reassigned": () => fetchAll(),
-    });
-    return unsubscribe;
-  }, [fetchAll]);
-
-  async function handleAssign(incident, responderId) {
+  async function onAssign(incident, responderId) {
     if (!responderId) return;
-    setAssignedBusy(incident._id);
-    setMessage("");
+    setBusyAssign(incident._id);
     try {
       const res = await incidentApi.assign(incident._id, responderId);
-      setIncidents((prev) => prev.map((i) => (i._id === incident._id ? res.data.incident : i)));
-      setMessage(`Assigned to ${responders.find((r) => r._id === responderId)?.name || "responder"} for ${shortId(incident)}.`);
-      setMessageType("success");
+      setIncidents((p) => p.map((i) => (i._id === incident._id ? res.data.incident : i)));
+      toast(`${shortId(incident)} assigned to ${responders.find((r) => r._id === responderId)?.name || "responder"}`);
     } catch (err) {
-      setMessage(errorMessage(err, "Assignment failed."));
-      setMessageType("error");
+      setError(errorMessage(err, "Assignment failed."));
     } finally {
-      setAssignedBusy(null);
+      setBusyAssign(null);
     }
   }
 
-  async function handleStatusChange(incident, nextStatus) {
-    if (!nextStatus || nextStatus === incident.status) return;
-    setStatusBusy(incident._id);
-    setMessage("");
+  async function onStatus(incident, next) {
+    if (!next || next === incident.status) return;
+    setBusyStatus(incident._id);
     try {
-      const res = await incidentApi.updateStatus(incident._id, nextStatus);
-      setIncidents((prev) => prev.map((i) => (i._id === incident._id ? res.data.incident : i)));
-      setMessage(`${shortId(incident)} → ${statusLabel(nextStatus)}.`);
-      setMessageType("success");
+      const res = await incidentApi.updateStatus(incident._id, next);
+      setIncidents((p) => p.map((i) => (i._id === incident._id ? res.data.incident : i)));
+      toast(`${shortId(incident)} → ${statusLabel(next)}`);
     } catch (err) {
-      setMessage(errorMessage(err, "Status update failed."));
-      setMessageType("error");
+      setError(errorMessage(err, "Update failed."));
     } finally {
-      setStatusBusy(null);
+      setBusyStatus(null);
     }
   }
 
-  const filteredIncidents = useMemo(
+  const filtered = useMemo(
     () =>
-      incidents.filter((incident) => {
-        const matchesPriority = priorityFilter === "All" || (incident.priority || "").toLowerCase() === priorityFilter.toLowerCase();
-        const matchesStatus = statusFilter === "All" || incident.status === statusFilter;
-        return matchesPriority && matchesStatus;
+      incidents.filter((i) => {
+        const p = priorityFilter === "All" || priorityTone(i.priority) === priorityFilter.toLowerCase();
+        const s = statusFilter === "All" || i.status === statusFilter;
+        return p && s;
       }),
     [incidents, priorityFilter, statusFilter]
   );
 
-  const activeCount = incidents.filter((i) => !isResolved(i.status)).length;
-  const criticalCount = incidents.filter((i) => (i.priority || "").toLowerCase() === "critical" && !isResolved(i.status)).length;
-  const unassignedCount = incidents.filter((i) => !i.assignedResponder && !isResolved(i.status)).length;
-  const resolvedCount = incidents.filter((i) => isResolved(i.status)).length;
+  const open = useMemo(() => incidents.filter((i) => !isResolved(i.status)), [incidents]);
+  const criticalCount = open.filter((i) => priorityTone(i.priority) === "critical").length;
+  const unassignedCount = open.filter((i) => !i.assignedResponder).length;
+  const resolvedCount = incidents.length - open.length;
 
-  const selectedIncident = incidents.find((i) => i._id === selectedIncidentId);
+  const workload = useMemo(
+    () => responders.map((r) => ({ ...r, active: open.filter((i) => assignedId(i) === r._id).length })),
+    [responders, open]
+  );
 
-  const responderWorkload = useMemo(() => {
-    return responders.map((responder) => ({
-      ...responder,
-      activeCount: incidents.filter((i) => {
-        const id = i.assignedResponder?._id || i.assignedResponder;
-        return id === responder._id && !isResolved(i.status);
-      }).length,
-    }));
-  }, [responders, incidents]);
+  const markers = useMemo(
+    () =>
+      open.flatMap((inc) => {
+        const position = incidentLatLng(inc);
+        if (!position) return [];
+        const tone = priorityTone(inc.priority);
+        return [{
+          id: inc._id,
+          position,
+          tone,
+          kind: "incident",
+          pulse: tone === "critical",
+          label: `${shortId(inc)} ${categoryLabel(inc.category)}`,
+        }];
+      }),
+    [open]
+  );
 
   return (
-    <div className="authority-dashboard">
-      <div className="authority-heading">
-        <div>
-          <p className="section-label">AUTHORITY CONTROL CENTER</p>
-          <h1>Incident Management</h1>
-          <p className="authority-subtitle">Review incidents, coordinate responders, and track progress.</p>
-        </div>
-        <span className="authority-demo-label">
-          <span className="demo-dot" />
-          Live backend
-        </span>
+    <div className="page">
+      <PageHead eyebrow="Authority control room" title={<>Incident <em>management.</em></>}
+        actions={<span className="status-pill" data-state="ready"><i className="live-dot" /> Live feed</span>}>
+        Review the queue, assign responders and track response progress.
+      </PageHead>
+
+      <div className="metrics">
+        <div className="metric"><span className="metric-label">Open</span><span className="metric-num">{open.length}</span><span className="metric-sub">Awaiting closure</span></div>
+        <div className="metric" data-tone={criticalCount ? "critical" : undefined}><span className="metric-label">Critical</span><span className="metric-num">{criticalCount}</span><span className="metric-sub">Immediate attention</span></div>
+        <div className="metric" data-tone={unassignedCount ? "high" : undefined}><span className="metric-label">Unassigned</span><span className="metric-num">{unassignedCount}</span><span className="metric-sub">Need a responder</span></div>
+        <div className="metric"><span className="metric-label">Resolved</span><span className="metric-num">{resolvedCount}</span><span className="metric-sub">Closed records</span></div>
       </div>
 
-      <div className="authority-stats-grid">
-        <div className="authority-stat-card">
-          <div className="authority-stat-top">Active Incidents</div>
-          <h2>{activeCount}</h2>
-          <p>Awaiting closure</p>
-        </div>
-        <div className="authority-stat-card">
-          <div className="authority-stat-top">Critical Incidents</div>
-          <h2>{criticalCount}</h2>
-          <p>Require immediate attention</p>
-        </div>
-        <div className="authority-stat-card">
-          <div className="authority-stat-top">Unassigned</div>
-          <h2>{unassignedCount}</h2>
-          <p>Need a responder</p>
-        </div>
-        <div className="authority-stat-card">
-          <div className="authority-stat-top">Resolved</div>
-          <h2>{resolvedCount}</h2>
-          <p>Closed records</p>
-        </div>
-      </div>
+      {error && <Notice tone="error" onDismiss={() => setError("")}>{error}</Notice>}
 
-      <section className="authority-panel">
-        <div className="authority-panel-heading">
+      <section className="card map-card" aria-labelledby="ops-map-h">
+        <div className="card-head">
           <div>
-            <h2>Incident Queue</h2>
-            <p>Assign responders and update incident status.</p>
+            <h2 id="ops-map-h" className="card-title">Operations map</h2>
+            <p className="card-sub">Open incidents by priority. Select a marker for details.</p>
           </div>
-          <div className="authority-filters">
-            <select
-              className="authority-filter"
-              value={priorityFilter}
-              onChange={(event) => setPriorityFilter(event.target.value)}
-              aria-label="Filter by priority"
-            >
+          <ul className="legend" aria-label="Legend">
+            <li><i data-tone="critical" /> Critical</li>
+            <li><i data-tone="high" /> High</li>
+            <li><i data-tone="medium" /> Medium</li>
+            <li><i data-tone="low" /> Low</li>
+          </ul>
+        </div>
+        <div className="map-stage is-short">
+          <Suspense fallback={<Skeleton height="100%" style={{ position: "absolute", inset: 0 }} />}>
+            <MapView
+              className="map-fill"
+              markers={markers}
+              fit
+              zoom={12}
+              label="Open incidents map"
+              onMarkerClick={(id) => navigate(`/incidents/${id}`)}
+            />
+          </Suspense>
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="card-head">
+          <div>
+            <h2 className="card-title">Incident queue</h2>
+            <p className="card-sub">Assign responders and advance status.</p>
+          </div>
+          <div className="toolbar">
+            <Select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} aria-label="Filter by priority">
               <option value="All">All priorities</option>
               <option value="Critical">Critical</option>
               <option value="High">High</option>
               <option value="Medium">Medium</option>
               <option value="Low">Low</option>
-            </select>
-            <select
-              className="authority-filter"
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              aria-label="Filter by status"
-            >
+            </Select>
+            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filter by status">
               <option value="All">All statuses</option>
-              {STATUSES.map((status) => (
-                <option key={status} value={status}>{statusLabel(status)}</option>
-              ))}
-            </select>
-            <button type="button" className="secondary-button" onClick={() => fetchAll({ spin: true })}>
-              Refresh
-            </button>
+              {STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
+            </Select>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={refresh}><Icon name="refresh" size={14} /> Refresh</button>
           </div>
         </div>
 
-        {message && (
-          <div className={`authority-feedback ${messageType === "error" ? "authority-feedback-error" : ""}`} role="status">
-            <span>{message}</span>
-            <button type="button" onClick={() => setMessage("")}>Dismiss</button>
-          </div>
-        )}
-
-        <div className="authority-table-wrap">
-          {loading ? (
-            <p className="authority-no-results">Loading incidents...</p>
-          ) : (
-            <table className="authority-table">
+        {loading ? (
+          <ListSkeleton rows={4} />
+        ) : filtered.length === 0 ? (
+          <Empty icon="inbox" title="No incidents match">Adjust the filters or wait for new reports.</Empty>
+        ) : (
+          <div className="table-scroll">
+            <table className="ledger">
               <thead>
-                <tr>
-                  <th>Incident</th>
-                  <th>Location</th>
-                  <th>Priority</th>
-                  <th>Status</th>
-                  <th>Responder</th>
-                  <th>Actions</th>
-                </tr>
+                <tr><th>Incident</th><th>Reporter</th><th>Location</th><th>Priority</th><th>Status</th><th>Responder</th><th>Actions</th></tr>
               </thead>
               <tbody>
-                {filteredIncidents.map((incident) => {
-                  const currentResponderId = incident.assignedResponder?._id || incident.assignedResponder || "";
-                  const nextStatuses = NEXT_STATUSES[incident.status] || [];
+                {filtered.map((inc) => {
+                  const next = NEXT_STATUSES[inc.status] || [];
                   return (
-                    <tr key={incident._id}>
-                      <td>
-                        <strong>{shortId(incident)}</strong>
-                        <span className="table-secondary">{categoryLabel(incident.category)}</span>
+                    <tr key={inc._id}>
+                      <td data-label="Incident" className="cell-main">
+                        <span className="mono id">{shortId(inc)}</span>
+                        <Link to={`/incidents/${inc._id}`} className="cell-title">{categoryLabel(inc.category)}</Link>
+                        <span className="cell-sub">{timeAgo(inc)}</span>
                       </td>
-                      <td>{formatCoordinates(incident)}</td>
-                      <td>
-                        <span className={`priority-badge priority-${(incident.priority || "medium").toLowerCase()}`}>
-                          {priorityLabel(incident.priority)}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`status-badge status-${statusLabel(incident.status).toLowerCase().replaceAll(" ", "-")}`}>
-                          {statusLabel(incident.status)}
-                        </span>
-                      </td>
-                      <td>
-                        <select
-                          className="table-select"
-                          aria-label={`Assign responder to ${shortId(incident)}`}
-                          value={currentResponderId}
-                          disabled={isResolved(incident.status) || assignedBusy === incident._id || !["TRIAGED", "ESCALATED", "ASSIGNED"].includes(incident.status)}
-                          onChange={(event) => handleAssign(incident, event.target.value)}
+                      <td data-label="Reporter" className="cell-muted">{reportedByName(inc)}</td>
+                      <td data-label="Location" className="mono cell-muted">{formatCoordinates(inc)}</td>
+                      <td data-label="Priority"><PriorityChip priority={inc.priority} /></td>
+                      <td data-label="Status"><StatusChip status={inc.status} /></td>
+                      <td data-label="Responder">
+                        <Select
+                          value={assignedId(inc)}
+                          disabled={busyAssign === inc._id || !canAssign(inc.status)}
+                          onChange={(e) => onAssign(inc, e.target.value)}
+                          aria-label={`Assign ${shortId(inc)}`}
                         >
                           <option value="">Unassigned</option>
-                          {responders.map((responder) => (
-                            <option key={responder._id} value={responder._id}>{responder.name}</option>
-                          ))}
-                        </select>
+                          {responders.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
+                        </Select>
+                        {!canAssign(inc.status) && <span className="cell-hint">Triage first to assign</span>}
                       </td>
-                      <td>
-                        <div className="authority-row-actions">
-                          <button
-                            type="button"
-                            className="table-action-button"
-                            onClick={() => setSelectedIncidentId(selectedIncidentId === incident._id ? null : incident._id)}
-                          >
-                            {selectedIncidentId === incident._id ? "Hide" : "Details"}
-                          </button>
-                          <select
-                            className="table-select status-select"
-                            aria-label={`Update status for ${shortId(incident)}`}
-                            value={incident.status}
-                            disabled={nextStatuses.length === 0 || statusBusy === incident._id}
-                            onChange={(event) => handleStatusChange(incident, event.target.value)}
-                          >
-                            <option value={incident.status}>{statusLabel(incident.status)}</option>
-                            {nextStatuses.map((status) => (
-                              <option key={status} value={status}>→ {statusLabel(status)}</option>
-                            ))}
-                          </select>
-                        </div>
+                      <td data-label="Actions">
+                        <Select
+                          value={inc.status}
+                          disabled={busyStatus === inc._id || next.length === 0}
+                          onChange={(e) => onStatus(inc, e.target.value)}
+                          aria-label={`Status for ${shortId(inc)}`}
+                        >
+                          <option value={inc.status}>{statusLabel(inc.status)}</option>
+                          {next.map((s) => <option key={s} value={s}>→ {statusLabel(s)}</option>)}
+                        </Select>
                       </td>
                     </tr>
                   );
                 })}
-                {filteredIncidents.length === 0 && (
-                  <tr>
-                    <td colSpan="6" className="authority-no-results">No incidents match these filters.</td>
-                  </tr>
-                )}
               </tbody>
             </table>
-          )}
-        </div>
-
-        <p className="authority-table-note">
-          Changes are saved to the backend and pushed in real time to the tourist and assigned responder.
-        </p>
+          </div>
+        )}
       </section>
 
-      {selectedIncident && (
-        <section className="authority-panel incident-detail-panel">
-          <div className="authority-panel-heading">
-            <div>
-              <p className="section-label">INCIDENT DETAILS</p>
-              <h2>{shortId(selectedIncident)} — {categoryLabel(selectedIncident.category)}</h2>
-            </div>
-            <button type="button" className="secondary-button" onClick={() => setSelectedIncidentId(null)}>
-              Close
-            </button>
-          </div>
-          <div className="incident-detail-grid">
-            <div><span>Reported time</span><strong>{formatTime(selectedIncident)}</strong></div>
-            <div><span>Location</span><strong>{formatCoordinates(selectedIncident)}</strong></div>
-            <div><span>Priority</span><strong>{priorityLabel(selectedIncident.priority)}</strong></div>
-            <div><span>Current status</span><strong>{statusLabel(selectedIncident.status)}</strong></div>
-            <div><span>Reported by</span><strong>{reportedByName(selectedIncident)}</strong></div>
-            <div><span>Assigned responder</span><strong>{selectedIncident.assignedResponder?.name || "Unassigned"}</strong></div>
-            <div className="incident-description">
-              <span>Description</span>
-              <p>{selectedIncident.description}</p>
-            </div>
-          </div>
-        </section>
-      )}
-
-      <section className="authority-panel">
-        <div className="authority-panel-heading">
+      <section className="card">
+        <div className="card-head">
           <div>
-            <h2>Responder Status</h2>
-            <p>Response team availability (from backend accounts)</p>
+            <h2 className="card-title">Responders</h2>
+            <p className="card-sub">Current workload from live assignments.</p>
           </div>
-          <span className="responder-count">{responders.length}</span>
+          <span className="chip" data-tone="neutral">{responders.length} on roster</span>
         </div>
-        <div className="responder-list">
-          {responderWorkload.length === 0 ? (
-            <p className="authority-no-results">No responder accounts yet. Register one with the "Responder" role.</p>
-          ) : (
-            responderWorkload.map((responder) => (
-              <div className="responder-row" key={responder._id}>
-                <div className="responder-avatar">{responder.name.charAt(0)}</div>
-                <div className="responder-details">
-                  <strong>{responder.name}</strong>
-                  <span>Field Responder</span>
+        {workload.length === 0 ? (
+          <Empty icon="users" title="No responder accounts yet">Register one with the Responder role.</Empty>
+        ) : (
+          <ul className="roster">
+            {workload.map((r) => (
+              <li key={r._id}>
+                <span className="avatar" aria-hidden="true">{r.name.charAt(0).toUpperCase()}</span>
+                <div>
+                  <strong>{r.name}</strong>
+                  <span>{r.email}</span>
                 </div>
-                <div className="responder-workload">
-                  <span>{responder.activeCount} active</span>
-                  <span className={responder.activeCount === 0 ? "responder-available" : "responder-busy"}>
-                    {responder.activeCount === 0 ? "Available" : "Busy"}
-                  </span>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+                <span className="chip" data-tone={r.active === 0 ? "ok" : "warn"}>
+                  <i className="chip-dot" />
+                  {r.active === 0 ? "Available" : `${r.active} active`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );
 }
-
-export default AuthorityDashboard;

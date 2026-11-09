@@ -1,123 +1,102 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { errorMessage, userApi } from "../api/api.js";
+import { Icon } from "../components/Icon.jsx";
+import ThemeToggle from "../components/ThemeToggle.jsx";
+import { Notice, PageHead, Skeleton } from "../components/ui.jsx";
 import { useAuth } from "../context/useAuth.js";
+import { useTheme } from "../utils/theme.js";
+import { requestLogout } from "../utils/toast.js";
 
-function Profile() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
+export default function Profile() {
+  const { user } = useAuth();
+  const { isDark } = useTheme();
+  const [state, setState] = useState({ profile: null, loading: true, error: "" });
 
   useEffect(() => {
-    async function loadProfile() {
-      try {
-        const res = await userApi.getProfile();
-        setProfile(res.data?.user || null);
-      } catch (err) {
-        setMessage(errorMessage(err, "Failed to load profile. Is the backend running?"));
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadProfile();
+    let cancelled = false;
+    userApi
+      .getProfile()
+      .then((res) => {
+        if (!cancelled) setState({ profile: res.data?.user || null, loading: false, error: "" });
+      })
+      .catch((err) => {
+        if (!cancelled) setState({ profile: null, loading: false, error: errorMessage(err, "Failed to load profile.") });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  function handleLogout() {
-    const confirmed = window.confirm("Are you sure you want to log out of YatraShield?");
-    if (!confirmed) return;
-    logout();
-    navigate("/login");
-  }
-
-  const displayName = profile?.name || user?.name || "User";
-  const avatarLetter = displayName.charAt(0).toUpperCase();
-  const roleLabel = profile?.role || user?.role || "tourist";
+  const { profile, loading, error } = state;
+  const name = profile?.name || user?.name || "User";
+  const email = profile?.email || user?.email || "";
+  const role = profile?.role || user?.role || "tourist";
 
   return (
-    <div className="profile-page">
-      <div className="page-header">
-        <p className="section-label">ACCOUNT</p>
-        <h2>Your profile</h2>
-        <p>Your account information, loaded from the YatraShield server.</p>
-      </div>
+    <div className="page page-narrow">
+      <PageHead eyebrow="Account" title={<>Your <em>profile.</em></>}>
+        Account information loaded from the server.
+      </PageHead>
 
-      <div className="profile-card">
-        <div className="profile-top">
-          <div className="large-avatar">{avatarLetter}</div>
+      {error && <Notice tone="error">{error}</Notice>}
+
+      <section className="card card-pad">
+        <div className="profile-head">
+          <span className="avatar avatar-lg" aria-hidden="true">{name.charAt(0).toUpperCase()}</span>
           <div>
-            <h2>{displayName}</h2>
-            <p className="role-chip">{roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1)} account</p>
-            <span className="account-status">● Account active</span>
+            <h2>{name}</h2>
+            <p>{email}</p>
           </div>
+          <span className="chip" data-tone="ok"><i className="chip-dot" /> Active</span>
         </div>
 
-        <div className="profile-section">
-          <div className="profile-section-title">
-            <p className="section-label">PERSONAL INFORMATION</p>
-            <h3>Account details</h3>
-          </div>
+        {loading ? (
+          <div className="facts-skeleton"><Skeleton height={52} /><Skeleton height={52} /></div>
+        ) : (
+          <dl className="facts facts-grid">
+            <div><dt>Full name</dt><dd>{name}</dd></div>
+            <div><dt>Email</dt><dd>{email || "—"}</dd></div>
+            <div><dt>Role</dt><dd className="cap">{role}</dd></div>
+            <div><dt>Member since</dt><dd>{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString([], { dateStyle: "medium" }) : "—"}</dd></div>
+          </dl>
+        )}
+      </section>
 
-          {loading ? (
-            <p className="profile-feedback">Loading profile...</p>
-          ) : (
-            <div className="profile-fields">
-              <div className="profile-field">
-                <span>Full name</span>
-                <strong>{profile?.name || user?.name || "Not provided"}</strong>
-              </div>
-              <div className="profile-field">
-                <span>Email address</span>
-                <strong>{profile?.email || user?.email || "Not provided"}</strong>
-              </div>
-              <div className="profile-field">
-                <span>Account role</span>
-                <strong>{roleLabel}</strong>
-              </div>
-            </div>
-          )}
+      <section className="card">
+        <ul className="settings">
+          <li>
+            <Icon name="moon" size={18} />
+            <div><strong>Appearance</strong><span>Currently {isDark ? "dark" : "light"}. Follows your device until you change it.</span></div>
+            <ThemeToggle />
+          </li>
+          <li>
+            <Icon name="pin" size={18} />
+            <div><strong>Location sharing</strong><span>Used to attach your position to reports.</span></div>
+            <span className="chip" data-tone="ok"><i className="chip-dot" /> On report</span>
+          </li>
+          <li>
+            <Icon name="bell" size={18} />
+            <div><strong>Live notifications</strong><span>Real-time status updates while the app is open.</span></div>
+            <span className="chip" data-tone="ok"><i className="chip-dot" /> On</span>
+          </li>
+          <li>
+            <Icon name="guide" size={18} />
+            <div><strong>Safety guide</strong><span>Tips and emergency numbers.</span></div>
+            <Link to="/safety" className="btn btn-sm btn-ghost">Open</Link>
+          </li>
+        </ul>
+      </section>
 
-          {message && <p className="profile-feedback" role="status">{message}</p>}
-        </div>
-
-        <div className="profile-section">
-          <div className="profile-section-title">
-            <p className="section-label">SAFETY PREFERENCES</p>
-            <h3>Location & notifications</h3>
-          </div>
-          <div className="preference-row">
-            <div>
-              <h4>Location sharing</h4>
-              <p>Allow your current location to be used for safety and emergency response.</p>
-            </div>
-            <span className="preference-active">Active</span>
-          </div>
-          <div className="preference-row">
-            <div>
-              <h4>Safety notifications</h4>
-              <p>Receive warnings about nearby risk zones and important safety updates.</p>
-            </div>
-            <span className="preference-active">Enabled</span>
-          </div>
-        </div>
-
-        <div className="profile-actions">
-          <button type="button" className="logout-button" onClick={handleLogout}>
-            Log out
-          </button>
-        </div>
+      <div className="profile-actions">
+        <button type="button" className="btn btn-ghost" onClick={requestLogout}>
+          <Icon name="logout" size={16} /> Log out
+        </button>
       </div>
 
-      <div className="privacy-note">
-        <span>🔒</span>
-        <div>
-          <h3>Your privacy matters</h3>
-          <p>Location and incident information should only be accessible to authorized users involved in safety response.</p>
-        </div>
-      </div>
+      <p className="fine-print left">
+        <Icon name="lock" size={13} /> Location and incident data are only visible to the people involved in your safety response.
+      </p>
     </div>
   );
 }
-
-export default Profile;

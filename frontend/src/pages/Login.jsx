@@ -1,85 +1,70 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import AuthLayout from "../components/AuthLayout.jsx";
+import { Icon } from "../components/Icon.jsx";
+import { Notice } from "../components/ui.jsx";
 import { useAuth } from "../context/useAuth.js";
 
-function Login() {
-  const { login, authLoading, authError } = useAuth();
+export default function Login() {
+  const { login, authLoading } = useAuth();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ email: "", password: "" });
-  const [message, setMessage] = useState("");
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [showPw, setShowPw] = useState(false);
+  const [error, setError] = useState("");
 
-  function handleChange(event) {
-    const { name, value } = event.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setMessage("");
+  function set(name, value) {
+    setForm((p) => ({ ...p, [name]: value }));
+    setError("");
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setMessage("");
-    if (!formData.email.trim() || !formData.password) {
-      setMessage("Please enter your email and password.");
-      return;
-    }
+  async function onSubmit(e) {
+    e.preventDefault();
+    setError("");
+    if (!form.email.trim() || !form.password) return setError("Enter your email and password.");
     try {
-      await login(formData.email.trim(), formData.password);
-      navigate("/");
+      await login(form.email.trim(), form.password);
+      navigate("/", { replace: true });
     } catch (err) {
-      setMessage(err.message || "Login failed. Please try again.");
+      setError(err.message || "Login failed. Check your details and try again.");
     }
   }
 
   return (
-    <div className="report-page auth-page">
-      <div className="page-header">
-        <p className="section-label">WELCOME BACK</p>
-        <h1>Log in to YatraShield</h1>
-        <p>Access your incidents, live safety map, and real-time updates.</p>
-      </div>
+    <AuthLayout
+      headline={<>Help that arrives before you ask <em>twice.</em></>}
+      body="One account for reporting, tracking and real-time response — whether you’re a tourist, a responder or a supervisor."
+    >
+      <p className="eyebrow">Welcome back</p>
+      <h1>Log in</h1>
+      <p className="auth-sub">Access your incidents, live map and real-time updates.</p>
 
-      <form className="report-form-card auth-form-card" onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={formData.email}
-            onChange={handleChange}
-            placeholder="you@example.com"
-            required
-          />
-        </div>
+      <form className="form-stack" onSubmit={onSubmit} noValidate>
+        <label className="field" htmlFor="email">
+          <span>Email</span>
+          <input id="email" type="email" inputMode="email" autoComplete="email" placeholder="you@example.com"
+            value={form.email} onChange={(e) => set("email", e.target.value)} />
+        </label>
 
-        <div className="form-group">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={formData.password}
-            onChange={handleChange}
-            placeholder="Enter your password"
-            required
-          />
-        </div>
+        <label className="field" htmlFor="password">
+          <span>Password</span>
+          <span className="input-wrap">
+            <input id="password" type={showPw ? "text" : "password"} autoComplete="current-password"
+              placeholder="Enter your password" value={form.password} onChange={(e) => set("password", e.target.value)} />
+            <button type="button" className="icon-btn is-small" onClick={() => setShowPw((s) => !s)}
+              aria-label={showPw ? "Hide password" : "Show password"} aria-pressed={showPw}>
+              <Icon name={showPw ? "eyeOff" : "eye"} size={17} />
+            </button>
+          </span>
+        </label>
 
-        {(message || authError) && (
-          <p className="form-message error-message" role="alert">{message || authError}</p>
-        )}
+        {error && <Notice tone="error">{error}</Notice>}
 
-        <button type="submit" className="submit-report" disabled={authLoading}>
-          {authLoading ? "Logging in..." : "Log in"}
+        <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={authLoading}>
+          {authLoading ? "Logging in…" : "Log in"}
         </button>
-
-        <p className="auth-switch-note">
-          New here? <Link to="/register">Create an account</Link>
-        </p>
       </form>
-    </div>
+
+      <p className="auth-alt">New here? <Link to="/register">Create an account</Link></p>
+    </AuthLayout>
   );
 }
-
-export default Login;

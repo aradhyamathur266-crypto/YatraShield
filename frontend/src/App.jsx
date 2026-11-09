@@ -1,120 +1,65 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-
-import BackendStatus from "./components/BackendStatus";
-import Header from "./components/Header";
+import AppShell from "./components/AppShell";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { useAuth } from "./context/useAuth.js";
-import TouristDashboard from "./pages/TouristDashboard";
-import ReportIncident from "./pages/ReportIncident";
-import SOS from "./pages/SOS";
-import MyIncidents from "./pages/MyIncidents";
-import SafetyInfo from "./pages/SafetyInfo";
-import Profile from "./pages/Profile";
-import AuthorityDashboard from "./pages/AuthorityDashboard";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
+import { startSmoothScroll } from "./utils/smooth-scroll.js";
+
+// Route-level code splitting keeps the first paint small; the map bundle
+// only loads on pages that actually render one.
+const Landing = lazy(() => import("./pages/Landing"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const TouristDashboard = lazy(() => import("./pages/TouristDashboard"));
+const ReportIncident = lazy(() => import("./pages/ReportIncident"));
+const SOS = lazy(() => import("./pages/SOS"));
+const MyIncidents = lazy(() => import("./pages/MyIncidents"));
+const IncidentDetail = lazy(() => import("./pages/IncidentDetail"));
+const SafetyInfo = lazy(() => import("./pages/SafetyInfo"));
+const Profile = lazy(() => import("./pages/Profile"));
+const AuthorityDashboard = lazy(() => import("./pages/AuthorityDashboard"));
 
 function Home() {
   const { user } = useAuth();
-
-  if (user?.role === "supervisor" || user?.role === "admin") {
-    return <AuthorityDashboard />;
-  }
-  if (user?.role === "responder") {
-    return (
-      <div>
-        <MyIncidents />
-      </div>
-    );
-  }
+  if (user?.role === "supervisor" || user?.role === "admin") return <AuthorityDashboard />;
+  if (user?.role === "responder") return <MyIncidents />;
   return <TouristDashboard />;
 }
 
-function AppShell() {
-  const [darkMode, setDarkMode] = useState(
-    () => localStorage.getItem("yatrashield-theme") === "dark"
-  );
-
-  useEffect(() => {
-    document.body.classList.toggle("dark-theme", darkMode);
-    localStorage.setItem("yatrashield-theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
-
-  return (
-    <div className="app">
-      <Header
-        darkMode={darkMode}
-        onToggleTheme={() => setDarkMode((prev) => !prev)}
-      />
-      <BackendStatus />
-      <main className="main-content">
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Home />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/report"
-            element={
-              <ProtectedRoute>
-                <ReportIncident />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/sos"
-            element={
-              <ProtectedRoute>
-                <SOS />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/incidents"
-            element={
-              <ProtectedRoute>
-                <MyIncidents />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/safety"
-            element={
-              <ProtectedRoute>
-                <SafetyInfo />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
-    </div>
-  );
+function Root() {
+  const { isAuthenticated } = useAuth();
+  if (isAuthenticated) return <Navigate to="/app" replace />;
+  return <Landing />;
 }
 
 function App() {
+  useEffect(() => startSmoothScroll(), []);
+
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppShell />
+        <Suspense fallback={<div className="boot" aria-busy="true" />}>
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<Root />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+
+            {/* Protected — app shell */}
+            <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
+              <Route path="/app" element={<Home />} />
+              <Route path="/report" element={<ReportIncident />} />
+              <Route path="/sos" element={<SOS />} />
+              <Route path="/incidents" element={<MyIncidents />} />
+              <Route path="/incidents/:id" element={<IncidentDetail />} />
+              <Route path="/safety" element={<SafetyInfo />} />
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );

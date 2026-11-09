@@ -1,46 +1,48 @@
 import { useEffect, useState } from "react";
 import { checkHealth } from "../api/api.js";
+import { Icon } from "./Icon.jsx";
 
-/**
- * Shows a dismissible banner when the backend is in no-DB mode
- * (MongoDB not configured/running). App shell stays usable.
- */
+// "unknown" until the first probe returns, so we never flash a false alarm.
 export default function BackendStatus() {
-  const [health, setHealth] = useState(null);
+  const [health, setHealth] = useState("unknown");
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    checkHealth().then((data) => {
-      if (!cancelled) setHealth(data);
-    });
-    const id = setInterval(() => {
+    const probe = () =>
       checkHealth().then((data) => {
         if (!cancelled) setHealth(data);
       });
-    }, 10000);
+    probe();
+    const id = setInterval(probe, 15000);
+    const onVisible = () => document.visibilityState === "visible" && probe();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
       clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
-  if (dismissed) return null;
+  if (health === "unknown") return null;
   if (health && health.status === "ok") return null;
+  if (dismissed) return null;
 
-  const offline = health === null;
+  const unreachable = health === null;
 
   return (
-    <div className="backend-status-banner" role="status">
-      <span className="demo-dot" />
-      <strong>{offline ? "Backend not reachable" : "Preview mode — no database"}</strong>
-      <span>
-        {offline
-          ? "Start the backend (root: npm run dev) to use login/incidents. The UI still loads."
-          : "MongoDB isn't connected, so login/incidents return 503. Set MONGO_URI in backend/.env when ready."}
-      </span>
-      <button type="button" className="link-button" onClick={() => setDismissed(true)}>
-        Dismiss
+    <div className="banner" data-tone={unreachable ? "error" : "warn"} role="status">
+      <Icon name="alert" size={16} />
+      <p>
+        <strong>{unreachable ? "Server unreachable" : "Preview mode — no database"}</strong>
+        <span>
+          {unreachable
+            ? " The API isn’t responding. Reports and live updates are paused."
+            : " Sign-in and incidents need MongoDB. Set MONGO_URI in backend/.env."}
+        </span>
+      </p>
+      <button type="button" className="icon-btn is-small" onClick={() => setDismissed(true)} aria-label="Dismiss">
+        <Icon name="x" size={14} />
       </button>
     </div>
   );
