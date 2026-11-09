@@ -24,9 +24,11 @@ YatraShield is a full-stack application that enables users to report incidents, 
 ### Frontend
 
 - **Framework**: React 19 with Vite
-- **UI**: React Leaflet for maps, React Router for navigation
+- **UI**: bespoke design system (no component kit, no icon pack) — warm paper/ink palette with one vermilion signal colour, Geist + Instrument Serif type, hand-drawn SVG glyphs, light/dark theme (follows the OS until you choose), mobile tab bar, ⌘/Ctrl+K command palette
+- **Maps**: MapLibre GL (WebGL vector tiles, CARTO Positron / Dark Matter basemaps, theme-aware); lazy-loaded so it only ships on pages with a map
+- **Motion**: Lenis inertial scrolling, transform/opacity-only animations, `prefers-reduced-motion` respected
 - **Dependencies**:
-  - `axios`, `react-leaflet`, `react-router-dom`, `socket.io-client`
+  - `axios`, `maplibre-gl`, `lenis`, `react-router-dom`, `socket.io-client`, `@fontsource*` (self-hosted fonts)
 
 ## API Endpoints
 

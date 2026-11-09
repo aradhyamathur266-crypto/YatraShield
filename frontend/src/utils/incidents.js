@@ -100,3 +100,37 @@ export function reportedByName(incident) {
 export function isResolved(status) {
   return status === "RESOLVED" || status === "CLOSED";
 }
+
+const STATUS_TONES = {
+  REPORTED: "neutral",
+  TRIAGED: "info",
+  ASSIGNED: "info",
+  ACKNOWLEDGED: "warn",
+  EN_ROUTE: "warn",
+  ON_SITE: "hot",
+  RESOLVED: "ok",
+  CLOSED: "neutral",
+  ESCALATED: "critical",
+};
+
+export function statusTone(status) {
+  return STATUS_TONES[status] || "neutral";
+}
+
+export function priorityTone(priority) {
+  const p = (priority || "medium").toLowerCase();
+  return ["critical", "high", "medium", "low"].includes(p) ? p : "medium";
+}
+
+/** "3 min ago", "2 h ago", or a short date for anything older than a week. */
+export function timeAgo(incident) {
+  const value = incident?.createdAt || incident?.updatedAt;
+  const t = value ? new Date(value).getTime() : NaN;
+  if (Number.isNaN(t)) return "Recently";
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60) return "Just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  if (s < 7 * 86400) return `${Math.floor(s / 86400)} d ago`;
+  return new Date(t).toLocaleDateString([], { day: "numeric", month: "short" });
+}

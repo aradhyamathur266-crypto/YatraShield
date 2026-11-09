@@ -1,0 +1,95 @@
+/* ============================================================
+   Design tokens
+   Warm paper + near-black ink, one signal colour (vermilion).
+   Dark values are shared with always-dark surfaces (landing band,
+   auth art, closing CTA) through the second selector list.
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+
+  --font-ui: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+
+  --bg: #efede6;
+  --paper: #f8f6f0;
+  --paper-2: #e8e5db;
+  --ink: #17160f;
+  --on-ink: #f8f6f0;
+  --muted: #5d5a50;
+  --faint: #8b877b;
+  --line: rgb(23 22 15 / 0.12);
+  --line-2: rgb(23 22 15 / 0.22);
+
+  --signal: #d8370f;
+  --signal-ink: #b82b08;
+  --on-signal: #ffffff;
+
+  --tone-critical: #c4281c;
+  --tone-high: #b05f08;
+  --tone-medium: #2a6496;
+  --tone-low: #3f7a3c;
+  --tone-ok: #3f7a3c;
+  --tone-info: #2a6496;
+  --tone-warn: #b05f08;
+  --tone-hot: #cf3d0c;
+  --tone-neutral: #5d5a50;
+  --tone-you: #1f6feb;
+
+  --shadow-pop: 0 24px 70px -24px rgb(23 22 15 / 0.45), 0 0 0 1px var(--line);
+
+  --radius: 14px;
+  --radius-sm: 10px;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  --rail-w: 252px;
+  --topbar-h: 60px;
+  --tabbar-h: 64px;
+}
+
+[data-theme="dark"],
+.lp-band,
+.lp-cta2,
+.auth-art {
+  color-scheme: dark;
+
+  --bg: #0d0d0b;
+  --paper: #151512;
+  --paper-2: #1e1e19;
+  --ink: #eeebe1;
+  --on-ink: #11110d;
+  --muted: #a3a094;
+  --faint: #72706a;
+  --line: rgb(238 235 225 / 0.1);
+  --line-2: rgb(238 235 225 / 0.2);
+
+  --signal: #ff5a2b;
+  --signal-ink: #ff7d55;
+  --on-signal: #170a04;
+
+  --tone-critical: #ff7064;
+  --tone-high: #f2a33a;
+  --tone-medium: #7ab3e3;
+  --tone-low: #8fc66e;
+  --tone-ok: #8fc66e;
+  --tone-info: #7ab3e3;
+  --tone-warn: #f2a33a;
+  --tone-hot: #ff7d45;
+  --tone-neutral: #a3a094;
+  --tone-you: #5aa2ff;
+
+  --shadow-pop: 0 24px 70px -20px rgb(0 0 0 / 0.8), 0 0 0 1px var(--line-2);
+}
+
+/* Map a data-tone attribute onto --tone, used by chips, pins, metrics, banners. */
+[data-tone="critical"], [data-tone="error"] { --tone: var(--tone-critical); }
+[data-tone="high"] { --tone: var(--tone-high); }
+[data-tone="medium"] { --tone: var(--tone-medium); }
+[data-tone="low"] { --tone: var(--tone-low); }
+[data-tone="ok"] { --tone: var(--tone-ok); }
+[data-tone="info"] { --tone: var(--tone-info); }
+[data-tone="warn"] { --tone: var(--tone-warn); }
+[data-tone="hot"] { --tone: var(--tone-hot); }
+[data-tone="neutral"] { --tone: var(--tone-neutral); }
+[data-tone="you"] { --tone: var(--tone-you); }
