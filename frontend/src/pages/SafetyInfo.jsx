@@ -48,15 +48,15 @@ function SafetyInfo() {
         <div className="safety-status-icon">✓</div>
 
         <div className="safety-status-content">
-          <p className="card-label">DEMO AREA STATUS</p>
-          <h2>Low Risk</h2>
+          <p className="card-label">AREA STATUS</p>
+          <h2>Connected</h2>
           <p>
-            This is sample safety information. Check official local sources
-            for current alerts.
+            You are connected to the YatraShield backend. Check official local
+            sources for current alerts.
           </p>
         </div>
 
-        <span className="safe-badge">Demo status</span>
+        <span className="safe-badge">Live</span>
       </section>
 
       <section className="safety-section safety-section-clean">

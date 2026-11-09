@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { incidentApi } from "../api/api.js";
+import { subscribeToIncidentEvents } from "../api/socket.js";
+import { categoryLabel, isResolved, priorityLabel, statusLabel } from "../utils/incidents.js";
 
 import {
   MapContainer,
@@ -40,12 +43,14 @@ function TouristDashboard() {
   // Track the user's live GPS location
   useEffect(() => {
     if (!navigator.geolocation) {
-      setLocationStatus("Geolocation is not supported by this browser");
-      setPlaceStatus("Location is unavailable");
+      queueMicrotask(() => {
+        setLocationStatus("Geolocation is not supported by this browser");
+        setPlaceStatus("Location is unavailable");
+      });
       return;
     }
 
-    setLocationStatus("Getting your live location...");
+    queueMicrotask(() => setLocationStatus("Getting your live location..."));
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
@@ -83,7 +88,7 @@ function TouristDashboard() {
     const [latitude, longitude] = location;
     const controller = new AbortController();
 
-    setPlaceStatus("Updating place name...");
+    queueMicrotask(() => setPlaceStatus("Updating place name..."));
 
     // Debounce requests so GPS updates do not overload the geocoding service
     const timeoutId = setTimeout(async () => {
@@ -151,6 +156,44 @@ function TouristDashboard() {
       controller.abort();
     };
   }, [location]);
+
+  const [recentIncidents, setRecentIncidents] = useState([]);
+  const fetchRecentIncidents = useCallback(async () => {
+    try {
+      const res = await incidentApi.getMine();
+      setRecentIncidents((res.data?.incidents || []).slice(0, 3));
+    } catch {
+      setRecentIncidents([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadInitial() {
+      try {
+        const res = await incidentApi.getMine();
+        if (!cancelled) setRecentIncidents((res.data?.incidents || []).slice(0, 3));
+      } catch {
+        if (!cancelled) setRecentIncidents([]);
+      }
+    }
+    loadInitial();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Live status updates while dashboard is open.
+  useEffect(() => {
+    const unsubscribe = subscribeToIncidentEvents({
+      "incident:status_updated": () => fetchRecentIncidents(),
+      "incident:assigned": () => fetchRecentIncidents(),
+      "incident:reassigned": () => fetchRecentIncidents(),
+    });
+    return unsubscribe;
+  }, [fetchRecentIncidents]);
+
+  const activeIncidentCount = recentIncidents.filter((i) => !isResolved(i.status)).length;
 
   function handleLocateMe() {
     if (location) {
@@ -323,6 +366,47 @@ function TouristDashboard() {
             Place name and coordinates update automatically as your location changes.
           </p>
         </div>
+      </section>
+
+      {/* RECENT INCIDENTS */}
+      <section className="tourist-section">
+        <div className="tourist-section-heading">
+          <div>
+            <p className="tourist-eyebrow">YOUR REPORTS</p>
+            <h2>Recent incidents {activeIncidentCount ? `(${activeIncidentCount} active)` : ""}</h2>
+            <p className="tourist-section-description">Updates appear here automatically.</p>
+          </div>
+          <button type="button" className="secondary-button" onClick={() => navigate("/incidents")}>
+            View all →
+          </button>
+        </div>
+
+        {recentIncidents.length === 0 ? (
+          <div className="recent-incidents-empty">
+            <p>No incidents yet. Report one to see it tracked here in real time.</p>
+            <button type="button" className="primary-button" onClick={() => navigate("/report")}>
+              Report an incident
+            </button>
+          </div>
+        ) : (
+          <div className="tourist-recent-list">
+            {recentIncidents.map((incident) => (
+              <article className="tourist-recent-card" key={incident._id || incident.id}>
+                <div>
+                  <span className="my-incident-id">{String(incident._id || "").slice(-6).toUpperCase()}</span>
+                  <h3>{categoryLabel(incident.category)}</h3>
+                  <p className="tourist-recent-desc">{incident.description}</p>
+                </div>
+                <div className="tourist-recent-badges">
+                  <span className={`priority-badge priority-${(incident.priority || "medium").toLowerCase()}`}>
+                    {priorityLabel(incident.priority)}
+                  </span>
+                  <span className="status-badge">{statusLabel(incident.status)}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* SAFETY RESOURCES */}
