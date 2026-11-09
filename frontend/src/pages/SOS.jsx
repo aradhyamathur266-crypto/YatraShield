@@ -1,126 +1,101 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AlertCircle, CheckCircle2, MapPin, Siren, ShieldCheck, Users } from "lucide-react";
 import { errorMessage, incidentApi } from "../api/api.js";
 
-function SOS() {
+export default function SOS() {
   const navigate = useNavigate();
   const [location, setLocation] = useState(null);
-  const [locationStatus, setLocationStatus] = useState("Getting your current location...");
-  const [isSending, setIsSending] = useState(false);
+  const [locStatus, setLocStatus] = useState("Getting your current location...");
+  const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
+  const [incidentId, setIncidentId] = useState(null);
 
   useEffect(() => {
     if (!navigator.geolocation) {
-      queueMicrotask(() => setLocationStatus("Geolocation is not supported by this browser."));
+      queueMicrotask(() => setLocStatus("GPS not supported on this browser."));
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        });
-        setLocationStatus("Location ready");
-      },
-      () => setLocationStatus("Location permission was not granted."),
+      (pos) => { setLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }); setLocStatus("Location ready"); },
+      () => setLocStatus("Location permission not granted."),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, []);
 
-  async function handleSOS() {
+  async function onSend() {
     setMessage("");
-    if (!location) {
-      setMessage("Location not ready yet. Please allow location access and try again.");
-      setMessageType("error");
-      return;
-    }
-
+    setIncidentId(null);
+    if (!location) { setMessage("Location not ready. Allow access and try again."); setMessageType("error"); return; }
     try {
-      setIsSending(true);
-      // Category "other" + critical keywords => backend assigns "critical" priority.
+      setSending(true);
       const res = await incidentApi.create({
         category: "other",
         description: "EMERGENCY SOS — life-threatening situation, immediate help needed",
-        location: {
-          type: "Point",
-          coordinates: [location.longitude, location.latitude],
-        },
+        location: { type: "Point", coordinates: [location.longitude, location.latitude] },
       });
       const incident = res.data?.incident;
-      setMessage(
-        incident
-          ? `SOS sent successfully. Incident ID: ${incident._id}. Priority: ${(incident.priority || "").toUpperCase()}`
-          : "SOS sent successfully. The response team has been notified."
-      );
+      setIncidentId(incident?._id);
+      setMessage("SOS sent. A responder will be assigned shortly — keep this page open.");
       setMessageType("success");
     } catch (err) {
-      setMessage(errorMessage(err, "SOS could not be sent. Is the backend running? Call emergency services directly."));
+      setMessage(errorMessage(err, "SOS could not be sent. If you're in danger, call 112 directly."));
       setMessageType("error");
     } finally {
-      setIsSending(false);
+      setSending(false);
     }
   }
 
   return (
-    <div className="sos-page">
-      <div className="sos-header">
-        <p className="section-label">EMERGENCY ASSISTANCE</p>
-        <h2>Need immediate help?</h2>
-        <p>Use SOS only when you or someone nearby is in immediate danger.</p>
+    <div className="sos-shell">
+      <div className="page-head" style={{ textAlign: "center" }}>
+        <span className="eyebrow" style={{ justifyContent: "center" }}>Emergency assistance</span>
+        <h1>Need immediate help?</h1>
+        <p style={{ marginInline: "auto" }}>Only for immediate danger. This creates a critical incident with your live location.</p>
       </div>
 
-      <div className="sos-card">
-        <div className="sos-icon">🆘</div>
-        <h1>Emergency SOS</h1>
-        <p>Pressing the button will create a critical emergency incident and share your current location with the response team.</p>
-
-        <p className="sos-location-status">
-          <span className="location-indicator" /> {locationStatus}
-          {location && <small> {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</small>}
+      <div className="card card-pad" style={{ textAlign: "center" }}>
+        <p style={{ fontSize: 13, color: "var(--muted)", display: "flex", justifyContent: "center", gap: 7, alignItems: "center" }}>
+          <span className="live-dot" /> {locStatus}
+          {location && <span> · {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span>}
         </p>
 
-        <button className="sos-button" onClick={handleSOS} disabled={isSending}>
-          {isSending ? "SENDING SOS..." : "PRESS FOR SOS"}
+        <button className="sos-ring" onClick={onSend} disabled={sending} aria-label="Press for SOS">
+          {sending ? "SENDING..." : "PRESS FOR SOS"}
         </button>
 
         {message && (
-          <p className={`form-message ${messageType === "error" ? "error-message" : "success-message"}`} role="status">
-            {message}
-            {messageType === "success" && (
-              <> <button type="button" className="link-button" onClick={() => navigate("/incidents")}>View my incidents →</button></>
-            )}
-          </p>
+          <div className={`alert ${messageType === "error" ? "alert-error" : "alert-success"}`} role="status" style={{ textAlign: "left" }}>
+            {messageType === "error" ? <AlertCircle /> : <CheckCircle2 />}
+            <span>{message}</span>
+          </div>
+        )}
+        {incidentId && messageType === "success" && (
+          <button className="btn btn-dark" onClick={() => navigate(`/incidents/${incidentId}`)}>Track this incident <Siren style={{ width: 16, height: 16 }} /></button>
         )}
 
-        <p className="sos-note">Your location will be shared with emergency responders.</p>
+        <p style={{ marginTop: 14, fontSize: 12, color: "var(--muted)" }}>Your location is shared only with assigned responders.</p>
       </div>
 
-      <div className="sos-info-grid">
-        <div className="sos-info-card">
-          <span>📍</span>
-          <div>
-            <h3>Location</h3>
-            <p>Your current location will be attached to the emergency request.</p>
-          </div>
+      <div className="sos-info">
+        <div className="card">
+          <span className="quick-icon" style={{ background: "var(--surface-3)", color: "var(--text)", width: 36, height: 36 }}><MapPin style={{ width: 17, height: 17 }} /></span>
+          <h3>Location</h3><p>Your current position is attached to the emergency.</p>
         </div>
-        <div className="sos-info-card">
-          <span>🚨</span>
-          <div>
-            <h3>Priority</h3>
-            <p>SOS requests are treated as critical priority incidents.</p>
-          </div>
+        <div className="card">
+          <span className="quick-icon" style={{ background: "var(--red-100)", color: "var(--red)", width: 36, height: 36 }}><Siren style={{ width: 17, height: 17 }} /></span>
+          <h3>Priority</h3><p>SOS is always critical — first in the queue.</p>
         </div>
-        <div className="sos-info-card">
-          <span>👮</span>
-          <div>
-            <h3>Response</h3>
-            <p>An available responder can be assigned to your emergency.</p>
-          </div>
+        <div className="card">
+          <span className="quick-icon" style={{ background: "var(--emerald-100)", color: "var(--emerald-dark)", width: 36, height: 36 }}><Users style={{ width: 17, height: 17 }} /></span>
+          <h3>Response</h3><p>A nearby responder is assigned and notified instantly.</p>
         </div>
       </div>
+
+      <p style={{ display: "flex", justifyContent: "center", gap: 7, marginTop: 22, fontSize: 12, color: "var(--muted)" }}>
+        <ShieldCheck style={{ width: 14, height: 14 }} /> Prefer a call? Dial 112 — YatraShield doesn't replace emergency services.
+      </p>
     </div>
   );
 }
-
-export default SOS;

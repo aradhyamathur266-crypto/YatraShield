@@ -1,123 +1,99 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AlertCircle, LogOut, MapPin, Bell } from "lucide-react";
 import { errorMessage, userApi } from "../api/api.js";
 import { useAuth } from "../context/useAuth.js";
 
-function Profile() {
+export default function Profile() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadProfile() {
+    let cancelled = false;
+    (async () => {
       try {
         const res = await userApi.getProfile();
-        setProfile(res.data?.user || null);
+        if (!cancelled) setProfile(res.data?.user || null);
       } catch (err) {
-        setMessage(errorMessage(err, "Failed to load profile. Is the backend running?"));
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadProfile();
+        if (!cancelled) setError(errorMessage(err, "Failed to load profile."));
+      } finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  function handleLogout() {
-    const confirmed = window.confirm("Are you sure you want to log out of YatraShield?");
-    if (!confirmed) return;
+  function onLogout() {
+    if (!window.confirm("Log out of YatraShield?")) return;
     logout();
     navigate("/login");
   }
 
-  const displayName = profile?.name || user?.name || "User";
-  const avatarLetter = displayName.charAt(0).toUpperCase();
-  const roleLabel = profile?.role || user?.role || "tourist";
+  const name = profile?.name || user?.name || "User";
+  const email = profile?.email || user?.email || "";
+  const role = profile?.role || user?.role || "tourist";
+  const initials = name.charAt(0).toUpperCase();
 
   return (
-    <div className="profile-page">
-      <div className="page-header">
-        <p className="section-label">ACCOUNT</p>
-        <h2>Your profile</h2>
-        <p>Your account information, loaded from the YatraShield server.</p>
+    <div style={{ maxWidth: 760 }}>
+      <div className="page-head">
+        <span className="eyebrow">Account</span>
+        <h1>Your profile</h1>
+        <p>Account information loaded from the server.</p>
       </div>
 
-      <div className="profile-card">
-        <div className="profile-top">
-          <div className="large-avatar">{avatarLetter}</div>
+      {error && <div className="alert alert-error" role="alert"><AlertCircle />{error}</div>}
+
+      <div className="card card-pad">
+        <div className="profile-head">
+          <span className="avatar-lg">{initials}</span>
           <div>
-            <h2>{displayName}</h2>
-            <p className="role-chip">{roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1)} account</p>
-            <span className="account-status">● Account active</span>
+            <h2 style={{ fontSize: 20 }}>{name}</h2>
+            <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>{email}</p>
+            <span className="role-chip" style={{ marginTop: 8 }}>{role}</span>
+          </div>
+          <span className="pill pill-resolved" style={{ marginLeft: "auto" }}><span className="live-dot" /> Active</span>
+        </div>
+
+        <div style={{ height: 1, background: "var(--line)", margin: "22px 0" }} />
+
+        {loading ? (
+          <div style={{ display: "grid", gap: 12 }}>
+            <div className="skeleton" style={{ height: 44 }} />
+            <div className="skeleton" style={{ height: 44 }} />
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="coord"><span>Full name</span><strong>{name}</strong></div>
+            <div className="coord"><span>Email</span><strong style={{ fontSize: 13 }}>{email || "—"}</strong></div>
+            <div className="coord"><span>Role</span><strong>{role}</strong></div>
+            <div className="coord"><span>Member since</span><strong>{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "—"}</strong></div>
+          </div>
+        )}
+
+        <div style={{ display: "grid", gap: 10, marginTop: 22 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", padding: 14, borderRadius: 12, background: "var(--surface-2)", border: "1px solid var(--line)" }}>
+            <MapPin style={{ width: 18, height: 18, color: "var(--emerald-dark)" }} />
+            <div style={{ flex: 1 }}><strong style={{ fontSize: 13 }}>Location sharing</strong><p style={{ fontSize: 12, color: "var(--muted)" }}>Used to attach your position to reports.</p></div>
+            <span className="pill pill-resolved">On</span>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", padding: 14, borderRadius: 12, background: "var(--surface-2)", border: "1px solid var(--line)" }}>
+            <Bell style={{ width: 18, height: 18, color: "var(--emerald-dark)" }} />
+            <div style={{ flex: 1 }}><strong style={{ fontSize: 13 }}>Safety notifications</strong><p style={{ fontSize: 12, color: "var(--muted)" }}>Real-time status updates for your incidents.</p></div>
+            <span className="pill pill-resolved">On</span>
           </div>
         </div>
 
-        <div className="profile-section">
-          <div className="profile-section-title">
-            <p className="section-label">PERSONAL INFORMATION</p>
-            <h3>Account details</h3>
-          </div>
-
-          {loading ? (
-            <p className="profile-feedback">Loading profile...</p>
-          ) : (
-            <div className="profile-fields">
-              <div className="profile-field">
-                <span>Full name</span>
-                <strong>{profile?.name || user?.name || "Not provided"}</strong>
-              </div>
-              <div className="profile-field">
-                <span>Email address</span>
-                <strong>{profile?.email || user?.email || "Not provided"}</strong>
-              </div>
-              <div className="profile-field">
-                <span>Account role</span>
-                <strong>{roleLabel}</strong>
-              </div>
-            </div>
-          )}
-
-          {message && <p className="profile-feedback" role="status">{message}</p>}
-        </div>
-
-        <div className="profile-section">
-          <div className="profile-section-title">
-            <p className="section-label">SAFETY PREFERENCES</p>
-            <h3>Location & notifications</h3>
-          </div>
-          <div className="preference-row">
-            <div>
-              <h4>Location sharing</h4>
-              <p>Allow your current location to be used for safety and emergency response.</p>
-            </div>
-            <span className="preference-active">Active</span>
-          </div>
-          <div className="preference-row">
-            <div>
-              <h4>Safety notifications</h4>
-              <p>Receive warnings about nearby risk zones and important safety updates.</p>
-            </div>
-            <span className="preference-active">Enabled</span>
-          </div>
-        </div>
-
-        <div className="profile-actions">
-          <button type="button" className="logout-button" onClick={handleLogout}>
-            Log out
-          </button>
+        <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
+          <button className="btn btn-danger" onClick={onLogout}><LogOut style={{ width: 16, height: 16 }} /> Log out</button>
         </div>
       </div>
 
-      <div className="privacy-note">
-        <span>🔒</span>
-        <div>
-          <h3>Your privacy matters</h3>
-          <p>Location and incident information should only be accessible to authorized users involved in safety response.</p>
-        </div>
+      <div className="card" style={{ marginTop: 20, padding: 18, fontSize: 13, color: "var(--muted)", display: "flex", gap: 12, alignItems: "center" }}>
+        <span style={{ fontSize: 18 }}>🔒</span>
+        <span><strong style={{ color: "var(--text)" }}>Your privacy matters.</strong> Location and incident data are only visible to users involved in your safety response.</span>
       </div>
     </div>
   );
 }
-
-export default Profile;

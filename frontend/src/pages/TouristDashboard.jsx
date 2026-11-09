@@ -1,470 +1,213 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowRight, Crosshair, FilePlus2, History, Siren } from "lucide-react";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { incidentApi } from "../api/api.js";
 import { subscribeToIncidentEvents } from "../api/socket.js";
-import { categoryLabel, isResolved, priorityLabel, statusLabel } from "../utils/incidents.js";
+import { categoryLabel, formatCoordinates, isResolved, priorityLabel, shortId, statusLabel } from "../utils/incidents.js";
 
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
-  useMap,
-} from "react-leaflet";
+const DEFAULT_CENTER = [28.4595, 77.0266];
 
-import "leaflet/dist/leaflet.css";
+function pinIcon() {
+  return L.divIcon({ className: "", html: `<div class="custom-pin"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] });
+}
 
-const DEFAULT_LOCATION = [28.4595, 77.0266];
-
-function MapUpdater({ location }) {
+function MapWatcher({ location }) {
   const map = useMap();
-
+  const first = useRef(true);
   useEffect(() => {
-    if (location) {
-      map.setView(location, 16);
-    }
+    if (location) map.setView(location, first.current ? 16 : map.getZoom());
+    first.current = false;
   }, [location, map]);
-
   return null;
 }
 
-function TouristDashboard() {
+export default function TouristDashboard() {
   const navigate = useNavigate();
-
   const [location, setLocation] = useState(null);
-  const [locationStatus, setLocationStatus] = useState(
-    "Waiting for location permission..."
-  );
+  const [locStatus, setLocStatus] = useState("Waiting for location permission...");
   const [placeName, setPlaceName] = useState("");
-  const [placeStatus, setPlaceStatus] = useState(
-    "Waiting for your location..."
-  );
+  const [placeStatus, setPlaceStatus] = useState("");
+  const [recent, setRecent] = useState([]);
+  const [hasGps, setHasGps] = useState(true);
 
-  // Track the user's live GPS location
+  // Live GPS
   useEffect(() => {
     if (!navigator.geolocation) {
       queueMicrotask(() => {
-        setLocationStatus("Geolocation is not supported by this browser");
-        setPlaceStatus("Location is unavailable");
+        setLocStatus("GPS not supported — reporting still works");
+        setHasGps(false);
       });
       return;
     }
-
-    queueMicrotask(() => setLocationStatus("Getting your live location..."));
-
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const latitude = position.coords.latitude;
-        const longitude = position.coords.longitude;
-
-        setLocation([latitude, longitude]);
-        setLocationStatus("Live location active");
+    const watch = navigator.geolocation.watchPosition(
+      (pos) => {
+        setLocation([pos.coords.latitude, pos.coords.longitude]);
+        setLocStatus("Live location active");
+        setHasGps(true);
       },
-      (error) => {
-        if (error.code === error.PERMISSION_DENIED) {
-          setLocationStatus("Location permission denied");
-          setPlaceStatus("Please allow location access in your browser.");
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setLocStatus("Location permission denied");
+          setHasGps(false);
         } else {
-          setLocationStatus("Unable to detect location");
-          setPlaceStatus("Unable to retrieve your current location.");
+          setLocStatus("Unable to detect location");
         }
       },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 15000,
-      }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
-
-    return () => {
-      navigator.geolocation.clearWatch(watchId);
-    };
+    return () => navigator.geolocation.clearWatch(watch);
   }, []);
 
-  // Convert live coordinates into a readable place name
+  // Reverse geocode
   useEffect(() => {
     if (!location) return;
-
-    const [latitude, longitude] = location;
+    const [lat, lng] = location;
     const controller = new AbortController();
-
-    queueMicrotask(() => setPlaceStatus("Updating place name..."));
-
-    // Debounce requests so GPS updates do not overload the geocoding service
-    const timeoutId = setTimeout(async () => {
+    queueMicrotask(() => setPlaceStatus("Updating place..."));
+    const t = setTimeout(async () => {
       try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
-          {
-            signal: controller.signal,
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Reverse geocoding request failed");
-        }
-
-        const data = await response.json();
-        const address = data.address || {};
-
-        const area =
-          address.neighbourhood ||
-          address.suburb ||
-          address.quarter ||
-          address.residential ||
-          address.village ||
-          address.town ||
-          address.city ||
-          address.county;
-
-        const city =
-          address.city ||
-          address.town ||
-          address.village ||
-          address.county;
-
-        const state = address.state;
-        const country = address.country;
-
-        const readablePlace = [
-          address.road,
-          area,
-          city,
-          state,
-          country,
-        ]
-          .filter(Boolean)
-          .filter((value, index, array) => array.indexOf(value) === index)
-          .join(", ");
-
-        setPlaceName(
-          readablePlace ||
-            data.display_name ||
-            "Place name unavailable"
-        );
-
-        setPlaceStatus("Place name updated");
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          setPlaceStatus("Could not retrieve place name");
-        }
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`, { signal: controller.signal });
+        if (!res.ok) throw new Error("geocode failed");
+        const data = await res.json();
+        const a = data.address || {};
+        const area = a.neighbourhood || a.suburb || a.quarter || a.residential || a.village || a.town || a.city || a.county;
+        const name = [a.road, area, a.city || a.town || a.village, a.state, a.country].filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join(", ");
+        setPlaceName(name || data.display_name || "Place unavailable");
+        setPlaceStatus("Updated");
+      } catch (e) {
+        if (e.name !== "AbortError") setPlaceStatus("Could not resolve place name");
       }
     }, 1500);
-
-    return () => {
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
+    return () => { clearTimeout(t); controller.abort(); };
   }, [location]);
 
-  const [recentIncidents, setRecentIncidents] = useState([]);
-  const fetchRecentIncidents = useCallback(async () => {
+  const fetchRecent = useCallback(async () => {
     try {
       const res = await incidentApi.getMine();
-      setRecentIncidents((res.data?.incidents || []).slice(0, 3));
+      setRecent((res.data?.incidents || []).slice(0, 4));
     } catch {
-      setRecentIncidents([]);
+      setRecent([]);
     }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    async function loadInitial() {
+    (async () => {
       try {
         const res = await incidentApi.getMine();
-        if (!cancelled) setRecentIncidents((res.data?.incidents || []).slice(0, 3));
-      } catch {
-        if (!cancelled) setRecentIncidents([]);
-      }
-    }
-    loadInitial();
-    return () => {
-      cancelled = true;
-    };
+        if (!cancelled) setRecent((res.data?.incidents || []).slice(0, 4));
+      } catch { if (!cancelled) setRecent([]); }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  // Live status updates while dashboard is open.
-  useEffect(() => {
-    const unsubscribe = subscribeToIncidentEvents({
-      "incident:status_updated": () => fetchRecentIncidents(),
-      "incident:assigned": () => fetchRecentIncidents(),
-      "incident:reassigned": () => fetchRecentIncidents(),
-    });
-    return unsubscribe;
-  }, [fetchRecentIncidents]);
+  useEffect(() => subscribeToIncidentEvents({
+    "incident:status_updated": () => fetchRecent(),
+    "incident:assigned": () => fetchRecent(),
+    "incident:reassigned": () => fetchRecent(),
+  }), [fetchRecent]);
 
-  const activeIncidentCount = recentIncidents.filter((i) => !isResolved(i.status)).length;
-
-  function handleLocateMe() {
-    if (location) {
-      setPlaceStatus("Your live location is being tracked.");
-    } else {
-      setLocationStatus("Waiting for your location...");
-    }
-  }
+  const activeCount = recent.filter((i) => !isResolved(i.status)).length;
 
   return (
-    <main className="dashboard tourist-dashboard-clean">
-      {/* DASHBOARD INTRO */}
-      <section className="tourist-welcome">
+    <div>
+      <div className="page-head page-head-row">
         <div>
-          <p className="tourist-eyebrow">TOURIST DASHBOARD</p>
+          <span className="eyebrow">Tourist dashboard</span>
           <h1>Your safety, in one place.</h1>
-          <p className="tourist-welcome-text">
-            Access safety tools and stay informed during your journey.
-          </p>
+          <p>Report, track, and get live updates — all from your current location.</p>
         </div>
+        <span className="pill pill-resolved" style={{ textTransform: "capitalize" }}>
+          <span className="live-dot" /> {locStatus}
+        </span>
+      </div>
 
-        <div className="tourist-location-pill">
-          <span className="location-indicator" />
-          <span>{locationStatus}</span>
-        </div>
-      </section>
-
-      {/* QUICK ACTIONS */}
-      <section className="tourist-actions" aria-label="Quick actions">
-        <button
-          type="button"
-          className="tourist-action-card tourist-report-action"
-          onClick={() => navigate("/report")}
-        >
-          <span className="tourist-action-icon">⚠</span>
-
-          <span className="tourist-action-content">
-            <strong>Report Incident</strong>
-            <small>Report a safety concern</small>
-          </span>
-
-          <span className="tourist-action-arrow">→</span>
+      <div className="quick-grid">
+        <button className="quick" onClick={() => navigate("/report")}>
+          <span className="quick-icon" style={{ background: "var(--ink-950)", color: "#fff" }}><FilePlus2 /></span>
+          <span><strong>Report incident</strong><small>30-second safety report</small></span>
+          <ArrowRight className="arrow" />
         </button>
-
-        <button
-          type="button"
-          className="tourist-action-card tourist-sos-action"
-          onClick={() => navigate("/sos")}
-        >
-          <span className="tourist-action-icon">SOS</span>
-
-          <span className="tourist-action-content">
-            <strong>Emergency SOS</strong>
-            <small>Access emergency options</small>
-          </span>
-
-          <span className="tourist-action-arrow">→</span>
+        <button className="quick" onClick={() => navigate("/sos")}>
+          <span className="quick-icon" style={{ background: "var(--red)", color: "#fff" }}><Siren /></span>
+          <span><strong>Emergency SOS</strong><small>Critical, immediate help</small></span>
+          <ArrowRight className="arrow" />
         </button>
-
-        <button
-          type="button"
-          className="tourist-action-card tourist-location-action"
-          onClick={handleLocateMe}
-        >
-          <span className="tourist-action-icon">⌖</span>
-
-          <span className="tourist-action-content">
-            <strong>My Live Location</strong>
-            <small>
-              {location ? "Location is being tracked" : "Waiting for GPS"}
-            </small>
-          </span>
-
-          <span className="tourist-action-arrow">→</span>
+        <button className="quick" onClick={() => navigate("/incidents")}>
+          <span className="quick-icon" style={{ background: "var(--emerald-100)", color: "var(--emerald-dark)" }}><History /></span>
+          <span><strong>My incidents</strong><small>{activeCount} active · track status</small></span>
+          <ArrowRight className="arrow" />
         </button>
-      </section>
+      </div>
 
-      {/* LIVE LOCATION MAP */}
-      <section className="tourist-section">
-        <div className="tourist-section-heading">
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-head">
           <div>
-            <p className="tourist-eyebrow">YOUR LOCATION</p>
-            <h2>Live safety map</h2>
-            <p className="tourist-section-description">
-              Your position updates automatically as you move.
-            </p>
+            <h3>Live safety map</h3>
+            <p>Your position updates automatically as you move.</p>
           </div>
-
-          <span className="tourist-map-status">
-            <span className="location-indicator" />
-            {location ? "Live tracking" : "Locating you..."}
-          </span>
+          <span className="pill pill-resolved"><span className="live-dot" /> {location ? "Live tracking" : "Locating..."}</span>
         </div>
-
-        <div className="tourist-map-container">
-          <MapContainer
-            center={location || DEFAULT_LOCATION}
-            zoom={16}
-            className="tourist-safety-map"
-          >
-            <TileLayer
-              attribution="&copy; OpenStreetMap contributors"
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-
+        <div className="map-shell">
+          <MapContainer center={location || DEFAULT_CENTER} zoom={16} className="tourist-map">
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
+            <MapWatcher location={location} />
             {location && (
-              <>
-                <MapUpdater location={location} />
-
-                <Marker position={location}>
-                  <Popup>
-                    <strong>You are here</strong>
-                    <br />
-                    Your live location is being tracked.
-                  </Popup>
-                </Marker>
-              </>
+              <Marker position={location} icon={pinIcon()}>
+                <Popup><strong>You are here</strong><br />Live location is being tracked.</Popup>
+              </Marker>
             )}
           </MapContainer>
-
-          {!location && (
-            <div className="tourist-map-overlay">
-              <span className="tourist-map-loading-icon">⌖</span>
-              <strong>Finding your location</strong>
-              <p>Please allow location access in your browser.</p>
-            </div>
-          )}
-        </div>
-
-        {/* CURRENT PLACE AND COORDINATES */}
-        <div className="tourist-current-location-card">
-          <div className="tourist-current-location-header">
-            <div className="tourist-current-location-title">
-              <span className="tourist-current-location-icon">⌖</span>
-              <div>
-                <p className="tourist-eyebrow">LIVE LOCATION DETAILS</p>
-                <h3>Your Current Location</h3>
-              </div>
-            </div>
-
-            <span className="tourist-live-badge">
-              <span className="location-indicator" />
-              Live
+          <div className="map-overlay-note">
+            <Crosshair />
+            <span><strong>{placeName || placeStatus || "Waiting for GPS..."}</strong>
+              {location && <span> · {location[0].toFixed(5)}, {location[1].toFixed(5)}</span>}
             </span>
+            {!hasGps && <span style={{ marginLeft: "auto" }}>Enable location in your browser for map features.</span>}
           </div>
-
-          <div className="tourist-place-name">
-            {location ? placeName || placeStatus : "Waiting for GPS location..."}
-          </div>
-
-          <div className="tourist-coordinates">
-            <div className="tourist-coordinate-item">
-              <span>Latitude</span>
-              <strong>
-                {location ? `${location[0].toFixed(6)}°` : "—"}
-              </strong>
-            </div>
-
-            <div className="tourist-coordinate-divider" />
-
-            <div className="tourist-coordinate-item">
-              <span>Longitude</span>
-              <strong>
-                {location ? `${location[1].toFixed(6)}°` : "—"}
-              </strong>
-            </div>
-          </div>
-
-          <p className="tourist-location-update-note">
-            Place name and coordinates update automatically as your location changes.
-          </p>
         </div>
-      </section>
+      </div>
 
-      {/* RECENT INCIDENTS */}
-      <section className="tourist-section">
-        <div className="tourist-section-heading">
+      <div className="card">
+        <div className="card-head">
           <div>
-            <p className="tourist-eyebrow">YOUR REPORTS</p>
-            <h2>Recent incidents {activeIncidentCount ? `(${activeIncidentCount} active)` : ""}</h2>
-            <p className="tourist-section-description">Updates appear here automatically.</p>
+            <h3>Recent incidents</h3>
+            <p>Updates appear here automatically.</p>
           </div>
-          <button type="button" className="secondary-button" onClick={() => navigate("/incidents")}>
-            View all →
-          </button>
+          <button className="btn btn-soft btn-sm" onClick={() => navigate("/incidents")}>View all <ArrowRight style={{ width: 14, height: 14 }} /></button>
         </div>
 
-        {recentIncidents.length === 0 ? (
-          <div className="recent-incidents-empty">
-            <p>No incidents yet. Report one to see it tracked here in real time.</p>
-            <button type="button" className="primary-button" onClick={() => navigate("/report")}>
-              Report an incident
-            </button>
+        {recent.length === 0 ? (
+          <div className="empty">
+            <div className="empty-icon"><History /></div>
+            <h3>No incidents yet</h3>
+            <p>Your reports and their live status will appear here.</p>
+            <button className="btn btn-primary" onClick={() => navigate("/report")}><FilePlus2 style={{ width: 16, height: 16 }} /> Report an incident</button>
           </div>
         ) : (
-          <div className="tourist-recent-list">
-            {recentIncidents.map((incident) => (
-              <article className="tourist-recent-card" key={incident._id || incident.id}>
-                <div>
-                  <span className="my-incident-id">{String(incident._id || "").slice(-6).toUpperCase()}</span>
-                  <h3>{categoryLabel(incident.category)}</h3>
-                  <p className="tourist-recent-desc">{incident.description}</p>
-                </div>
-                <div className="tourist-recent-badges">
-                  <span className={`priority-badge priority-${(incident.priority || "medium").toLowerCase()}`}>
-                    {priorityLabel(incident.priority)}
-                  </span>
-                  <span className="status-badge">{statusLabel(incident.status)}</span>
-                </div>
-              </article>
-            ))}
+          <div className="table-wrap">
+            <table className="data">
+              <thead><tr><th>Incident</th><th>Location</th><th>Priority</th><th>Status</th></tr></thead>
+              <tbody>
+                {recent.map((inc) => (
+                  <tr key={inc._id} className="row-clickable" onClick={() => navigate(`/incidents/${inc._id}`)}>
+                    <td>
+                      <span className="id-mono">{shortId(inc)}</span>
+                      <strong style={{ display: "block", marginTop: 3 }}>{categoryLabel(inc.category)}</strong>
+                    </td>
+                    <td style={{ color: "var(--muted)" }}>{formatCoordinates(inc)}</td>
+                    <td><span className={`pill pill-${(inc.priority || "medium").toLowerCase()}`}>{priorityLabel(inc.priority)}</span></td>
+                    <td><span className={`pill pill-${statusLabel(inc.status).toLowerCase().replaceAll(" ", "-")}`}>{statusLabel(inc.status)}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-      </section>
-
-      {/* SAFETY RESOURCES */}
-      <section className="tourist-section">
-        <div className="tourist-section-heading">
-          <div>
-            <p className="tourist-eyebrow">SAFETY RESOURCES</p>
-            <h2>Quick access</h2>
-          </div>
-        </div>
-
-        <div className="tourist-resource-grid">
-          <button
-            type="button"
-            className="tourist-resource-card"
-            onClick={() => navigate("/incidents")}
-          >
-            <span className="tourist-resource-icon">▤</span>
-
-            <span>
-              <strong>My Incidents</strong>
-              <small>Track your reports and their status.</small>
-            </span>
-
-            <span className="tourist-resource-arrow">→</span>
-          </button>
-
-          <button
-            type="button"
-            className="tourist-resource-card"
-            onClick={() => navigate("/safety")}
-          >
-            <span className="tourist-resource-icon">✓</span>
-
-            <span>
-              <strong>Safety Information</strong>
-              <small>Read travel safety tips and guidance.</small>
-            </span>
-
-            <span className="tourist-resource-arrow">→</span>
-          </button>
-        </div>
-      </section>
-
-      {/* SAFETY REMINDER */}
-      <section className="tourist-safety-note">
-        <span className="tourist-safety-note-icon">ℹ</span>
-
-        <div>
-          <strong>Stay aware during your journey</strong>
-          <p>
-            Keep location access enabled when using location-based features,
-            follow official guidance, and use the SOS page for emergency options.
-          </p>
-        </div>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }
-
-export default TouristDashboard;

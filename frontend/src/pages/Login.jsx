@@ -1,85 +1,80 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { AlertCircle, Eye, EyeOff, Shield } from "lucide-react";
 import { useAuth } from "../context/useAuth.js";
 
-function Login() {
-  const { login, authLoading, authError } = useAuth();
+export default function Login() {
+  const { login, authLoading } = useAuth();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ email: "", password: "" });
-  const [message, setMessage] = useState("");
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [showPw, setShowPw] = useState(false);
+  const [error, setError] = useState("");
 
-  function handleChange(event) {
-    const { name, value } = event.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setMessage("");
+  function set(name, value) {
+    setForm((p) => ({ ...p, [name]: value }));
+    setError("");
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setMessage("");
-    if (!formData.email.trim() || !formData.password) {
-      setMessage("Please enter your email and password.");
-      return;
-    }
+  async function onSubmit(e) {
+    e.preventDefault();
+    setError("");
+    if (!form.email.trim() || !form.password) return setError("Enter your email and password.");
     try {
-      await login(formData.email.trim(), formData.password);
-      navigate("/");
+      await login(form.email.trim(), form.password);
+      navigate("/", { replace: true });
     } catch (err) {
-      setMessage(err.message || "Login failed. Please try again.");
+      setError(err.message || "Login failed. Check your details and try again.");
     }
   }
 
   return (
-    <div className="report-page auth-page">
-      <div className="page-header">
-        <p className="section-label">WELCOME BACK</p>
-        <h1>Log in to YatraShield</h1>
-        <p>Access your incidents, live safety map, and real-time updates.</p>
+    <div className="auth-wrap">
+      <div className="auth-story">
+        <Link to="/" className="brand" style={{ color: "#fff", textDecoration: "none" }}>
+          <span className="brand-mark" style={{ background: "rgba(255,255,255,.12)" }}><Shield /></span>
+          <span className="brand-name" style={{ color: "#fff" }}>YatraShield</span>
+        </Link>
+        <div>
+          <h2>Safety that arrives before you have to ask twice.</h2>
+          <p>One account for reporting, tracking, and real-time response — whether you're a tourist, responder, or supervisor.</p>
+        </div>
+        <div className="auth-quote">
+          "Reported at Cyber Hub, responder on scene in 6 minutes. I could see every update live."
+          <strong>— Tourist, Gurugram</strong>
+        </div>
       </div>
 
-      <form className="report-form-card auth-form-card" onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={formData.email}
-            onChange={handleChange}
-            placeholder="you@example.com"
-            required
-          />
-        </div>
+      <div className="auth-panel">
+        <span className="eyebrow">Welcome back</span>
+        <h1>Log in to YatraShield</h1>
+        <p className="sub">Access your incidents, live map, and real-time updates.</p>
 
-        <div className="form-group">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={formData.password}
-            onChange={handleChange}
-            placeholder="Enter your password"
-            required
-          />
-        </div>
+        <form className="auth-form" onSubmit={onSubmit} noValidate>
+          <div className="field">
+            <label htmlFor="email">Email</label>
+            <input id="email" type="email" autoComplete="email" placeholder="you@example.com"
+              value={form.email} onChange={(e) => set("email", e.target.value)} required />
+          </div>
+          <div className="field">
+            <label htmlFor="password">Password</label>
+            <div className="password-wrap">
+              <input id="password" type={showPw ? "text" : "password"} autoComplete="current-password"
+                placeholder="Enter your password" value={form.password} onChange={(e) => set("password", e.target.value)} required />
+              <button type="button" className="password-toggle" onClick={() => setShowPw((s) => !s)} aria-label={showPw ? "Hide password" : "Show password"}>
+                {showPw ? <EyeOff /> : <Eye />}
+              </button>
+            </div>
+          </div>
 
-        {(message || authError) && (
-          <p className="form-message error-message" role="alert">{message || authError}</p>
-        )}
+          {error && <div className="alert alert-error" role="alert"><AlertCircle />{error}</div>}
 
-        <button type="submit" className="submit-report" disabled={authLoading}>
-          {authLoading ? "Logging in..." : "Log in"}
-        </button>
+          <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={authLoading}>
+            {authLoading ? "Logging in..." : "Log in"}
+          </button>
+        </form>
 
-        <p className="auth-switch-note">
-          New here? <Link to="/register">Create an account</Link>
-        </p>
-      </form>
+        <p className="auth-alt">New here? <Link to="/register">Create an account</Link></p>
+      </div>
     </div>
   );
 }
-
-export default Login;
