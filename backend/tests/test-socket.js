@@ -1,32 +1,40 @@
-const {io} = require("socket.io-client");
+const { io } = require("socket.io-client");
 const token = process.env.TEST_JWT;
+const expectedEvent = process.env.TEST_EVENT;
 
 if(!token){
   console.error("Please provide TEST_JWT");
   process.exit(1);
 }
 
-const socket = io("http://localhost:5000", {
+const socket = io("http://localhost:5000",{
   auth: { token },
   reconnection: false,
   timeout: 5000,
 });
 
+const events = [
+  "incident:assigned",
+  "incident:escalated",
+  "incident:reassigned",
+  "incident:status_updated",
+];
+
 socket.on("connect", () => {
-  console.log("SUCCESS: Authenticated admin socket connected!");
+  console.log("SUCCESS: Authenticated socket connected!");
   console.log("Socket ID:", socket.id);
-  console.log("Listening for incident:escalated...");
+  console.log("Listening for:", expectedEvent || "all incident events");
 });
 
-socket.on("incident:escalated", (notification) => {
-  console.log("SUCCESS: Escalation notification received!");
-  console.log(notification);
-  socket.disconnect();
-});
+events.forEach((eventName) => {
+  socket.on(eventName, (data) => {
+    console.log(`\nSUCCESS: Received ${eventName}`);
+    console.log(JSON.stringify(data, null, 2));
 
-socket.on("incident:reassigned", (data) => {
-  console.log("SUCCESS: Reassignment notification received!");
-  console.log(data);
+    if(!expectedEvent || expectedEvent === eventName){
+      socket.disconnect();
+    }
+  });
 });
 
 socket.on("connect_error", (error) => {
