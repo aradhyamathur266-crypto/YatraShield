@@ -51,7 +51,7 @@ table { border-spacing: 0; }
   font-variant-numeric: tabular-nums;
 }
 
-em { font-family: var(--font-display); font-style: italic; font-weight: 400; color: var(--signal-ink); letter-spacing: -0.01em; }
+em { font-style: normal; font-weight: inherit; color: var(--signal-ink); letter-spacing: -0.015em; }
 
 .icon { flex: none; }
 
@@ -94,5 +94,5 @@ html:has(dialog[open]) { overflow: hidden; }
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  .lp-marquee-track, .auth-radar-sweep, .sos-ripple, .pin-ring { animation: none !important; }
+  .pin-ring { animation: none !important; }
 }

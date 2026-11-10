@@ -18,7 +18,7 @@
 .btn-ghost-dark { --btn-bd: var(--line-2); --btn-fg: var(--ink); }
 .btn-ghost-dark:hover { --btn-bg: color-mix(in srgb, var(--ink) 8%, transparent); }
 .btn-quiet:hover:not(:disabled) { --btn-bg: color-mix(in srgb, var(--ink) 6%, transparent); }
-.btn-lg { height: 50px; padding: 0 24px; font-size: 15.5px; border-radius: 12px; }
+.btn-lg { height: 50px; padding: 0 24px; font-size: 15.5px; border-radius: 8px; }
 .btn-sm { height: 34px; padding: 0 12px; font-size: 13px; gap: 6px; }
 .btn-block { width: 100%; }
 
@@ -94,8 +94,8 @@ kbd {
 }
 .page-head.is-center { flex-direction: column; align-items: center; text-align: center; }
 .page-head h1 {
-  margin-top: 14px; font-family: var(--font-display); font-weight: 400;
-  font-size: clamp(2.5rem, 5.2vw, 3.8rem); line-height: 0.98; letter-spacing: -0.025em;
+  margin-top: 14px; font-family: var(--font-display); font-weight: 650;
+  font-size: clamp(2.5rem, 5.2vw, 3.8rem); line-height: 1; letter-spacing: -0.02em;
   text-wrap: balance;
 }
 .page-head-sub { margin-top: 12px; max-width: 54ch; color: var(--muted); font-size: 15.5px; text-wrap: pretty; }
@@ -188,7 +188,7 @@ input:focus, textarea:focus, .select select:focus {
 
 /* ---------- Notices / banners ---------- */
 .notice {
-  display: flex; align-items: flex-start; gap: 11px; padding: 12px 14px; border-radius: 12px;
+  display: flex; align-items: flex-start; gap: 11px; padding: 12px 14px; border-radius: 8px;
   color: var(--ink); font-size: 14px;
   background: color-mix(in srgb, var(--tone, var(--tone-info)) 9%, var(--paper));
   border: 1px solid color-mix(in srgb, var(--tone, var(--tone-info)) 32%, transparent);
@@ -217,7 +217,7 @@ input:focus, textarea:focus, .select select:focus {
 .empty { display: grid; justify-items: center; gap: 8px; padding: 52px 24px; text-align: center; }
 .empty-mark {
   display: grid; place-items: center; width: 54px; height: 54px; margin-bottom: 6px;
-  border: 1px dashed var(--line-2); border-radius: 14px; color: var(--muted); background: var(--paper-2);
+  border: 1px dashed var(--line-2); border-radius: 10px; color: var(--muted); background: var(--paper-2);
 }
 .empty h3 { font-size: 17px; }
 .empty p { max-width: 38ch; color: var(--muted); font-size: 14px; }
@@ -238,7 +238,7 @@ input:focus, textarea:focus, .select select:focus {
   display: inline-grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%;
   background: var(--ink); color: var(--on-ink); font-size: 14px; font-weight: 600;
 }
-.avatar-lg { width: 68px; height: 68px; font-family: var(--font-display); font-size: 34px; font-weight: 400; }
+.avatar-lg { width: 68px; height: 68px; font-family: var(--font-display); font-size: 30px; font-weight: 650; }
 
 /* ---------- Ledger table ---------- */
 .table-scroll { overflow-x: auto; }
@@ -270,21 +270,21 @@ input:focus, textarea:focus, .select select:focus {
 .metric { display: grid; gap: 2px; padding: 18px 22px 20px; background: var(--paper); }
 .metric-label { font-family: var(--font-mono); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
 .metric-num {
-  font-family: var(--font-display); font-size: clamp(2.6rem, 4.6vw, 3.6rem); line-height: 1.02;
+  font-family: var(--font-display); font-weight: 650; font-size: clamp(2.2rem, 4vw, 3.2rem); line-height: 1.04;
   letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--tone, var(--ink));
 }
 .metric-sub { font-size: 13px; color: var(--muted); }
 
 /* ---------- Dialog ---------- */
 .dialog {
-  padding: 0; border: 0; border-radius: 18px; background: var(--paper); color: var(--ink);
+  padding: 0; border: 0; border-radius: 12px; background: var(--paper); color: var(--ink);
   box-shadow: var(--shadow-pop); max-width: calc(100vw - 24px);
 }
 .dialog::backdrop { background: rgb(10 9 6 / 0.55); }
 .dialog[open] { animation: pop-in 0.26s var(--ease); }
 .dialog[open]::backdrop { animation: fade-in 0.22s ease-out; }
 .dialog-confirm { width: 400px; padding: 26px; margin: auto; }
-.dialog-confirm h3 { font-family: var(--font-display); font-weight: 400; font-size: 1.9rem; letter-spacing: -0.02em; }
+.dialog-confirm h3 { font-family: var(--font-display); font-weight: 620; font-size: 1.9rem; letter-spacing: -0.02em; }
 .dialog-confirm p { margin-top: 8px; color: var(--muted); }
 .dialog-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; flex-wrap: wrap; }
 

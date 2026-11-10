@@ -5,12 +5,15 @@
    auth art, closing CTA) through the second selector list.
    ============================================================ */
 
+/* Bricolage Grotesque (display) · Public Sans (UI) · IBM Plex Mono (data) */
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Public+Sans:wght@400..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
 :root {
   color-scheme: light;
 
-  --font-ui: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --font-display: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-ui: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: "Bricolage Grotesque", "Public Sans", system-ui, sans-serif;
 
   --bg: #efede6;
   --paper: #f8f6f0;
@@ -37,10 +40,10 @@
   --tone-neutral: #5d5a50;
   --tone-you: #1f6feb;
 
-  --shadow-pop: 0 24px 70px -24px rgb(23 22 15 / 0.45), 0 0 0 1px var(--line);
+  --shadow-pop: 0 18px 48px -22px rgb(23 22 15 / 0.38), 0 0 0 1px var(--line);
 
-  --radius: 14px;
-  --radius-sm: 10px;
+  --radius: 10px;
+  --radius-sm: 6px;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 
   --rail-w: 252px;

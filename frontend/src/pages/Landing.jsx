@@ -20,7 +20,6 @@ function demoPriority(category, description) {
 }
 
 const LEVELS = ["low", "medium", "high", "critical"];
-const AREAS = ["Cyber Hub", "MG Road", "Leisure Valley", "IFFCO Chowk", "Sector 29", "Golf Course Road", "Udyog Vihar", "Sohna Road"];
 
 const SAMPLE_MARKERS = [
   { id: "s1", position: [28.4595, 77.0266], tone: "critical", pulse: true, label: "Sample critical incident" },
@@ -181,19 +180,6 @@ export default function Landing() {
             <div key={l}><dt>{n}</dt><dd>{l}</dd></div>
           ))}
         </dl>
-      </section>
-
-      {/* COVERAGE */}
-      <section className="lp-marquee" aria-label="Areas covered">
-        <div className="lp-marquee-track">
-          {[0, 1].map((dup) => (
-            <ul key={dup} aria-hidden={dup === 1}>
-              {AREAS.map((a) => (
-                <li key={a}><Icon name="pin" size={14} /> {a}</li>
-              ))}
-            </ul>
-          ))}
-        </div>
       </section>
 
       {/* WHY */}
