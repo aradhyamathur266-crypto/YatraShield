@@ -42,6 +42,20 @@ const incidentSchema = new mongoose.Schema(
       coordinates: {
         type: [Number],
         required: true,
+        validate: {
+         validator: function (coordinates) {
+          return (
+            Array.isArray(coordinates) &&
+            coordinates.length === 2 &&
+            coordinates.every(Number.isFinite) &&
+            coordinates[0] >= -180 &&
+            coordinates[0] <= 180 &&
+            coordinates[1] >= -90 &&
+            coordinates[1] <= 90
+      );
+    },
+    message: "Coordinates must contain valid [longitude, latitude] values",
+  },
       },
     },
 
