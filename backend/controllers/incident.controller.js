@@ -5,62 +5,118 @@ const User = require("../models/user");
 const ACK_TIMEOUT_MINUTES = Number(
   process.env.ACK_TIMEOUT_MINUTES || 5
 );
+
 // Create a new incident
 const createIncident = async (req, res) => {
-  try {
-    const {
-      category,
-      description,
-      location,
-    } = req.body;
+  try{
+    const{category, description, location} = req.body;
 
-    // Validate required fields
-    if (!category || !description || !location) {
+    const allowedCategories = [
+      "medical",
+      "accident",
+      "crime",
+      "lost_person",
+      "fire",
+      "harassment",
+      "natural_disaster",
+      "other",
+    ];
+
+    if(
+      typeof category !== "string" ||
+      !allowedCategories.includes(category)
+    ) {
       return res.status(400).json({
-        message: "Category, description and location are required",
+        message: "Invalid incident category",
       });
     }
 
-    // Calculate priority on the server
-    const priority = getIncidentPriority(category, description);
+    if(
+      typeof description !== "string" ||
+      description.trim().length < 5 ||
+      description.trim().length > 2000
+    ) {
+      return res.status(400).json({
+        message: "Description must be between 5 and 2000 characters",
+      });
+    }
 
-    // Create incident
+    if(
+      !location ||
+      typeof location !== "object" ||
+      Array.isArray(location) ||
+      location.type !== "Point" ||
+      !Array.isArray(location.coordinates) ||
+      location.coordinates.length !== 2
+    ) {
+      return res.status(400).json({
+        message: "Location must be a valid GeoJSON Point",
+      });
+    }
+
+    const[longitude, latitude] = location.coordinates;
+
+    if (
+      typeof longitude !== "number" ||
+      typeof latitude !== "number" ||
+      !Number.isFinite(longitude) ||
+      !Number.isFinite(latitude) ||
+      longitude < -180 ||
+      longitude > 180 ||
+      latitude < -90 ||
+      latitude > 90
+    ) {
+      return res.status(400).json({
+        message: "Invalid longitude or latitude coordinates",
+      });
+    }
+
+    const priority = getIncidentPriority(
+      category,
+      description.trim()
+    );
+
     const incident = await Incident.create({
       reportedBy: req.user.user_id,
       category,
-      description,
-      location,
+      description: description.trim(),
+      location: {
+        type: "Point",
+        coordinates: [longitude, latitude],
+      },
       priority,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Incident reported successfully",
       incident,
     });
-  } catch (error) {
+
+  } catch(error){
     console.error("Create incident error:", error.message);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
 };
 
+
 // Get incidents reported by the logged-in user
 const getMyIncidents = async (req, res) => {
-  try {
+  try{
     const incidents = await Incident.find({
       reportedBy: req.user.user_id,
     }).sort({ createdAt: -1 });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Incidents fetched successfully",
       incidents,
     });
-  } catch (error) {
+  } catch(error){
     console.error("Get incidents error:", error.message);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
@@ -69,7 +125,7 @@ const getMyIncidents = async (req, res) => {
 
 // Get incidents assigned to the logged-in responder
 const getAssignedIncidents = async (req, res) => {
-   try {
+  try{
     const incidents = await Incident.find({
       assignedResponder: req.user.user_id,
     })
@@ -81,7 +137,7 @@ const getAssignedIncidents = async (req, res) => {
       count: incidents.length,
       incidents,
     });
-  } catch (error) {
+  } catch(error){
     console.error("Get assigned incidents error:", error.message);
 
     return res.status(500).json({
@@ -93,7 +149,7 @@ const getAssignedIncidents = async (req, res) => {
 
 // Get all incidents (supervisor/admin only)
 const getAllIncidents = async (req, res) => {
-  try {
+  try{
     const incidents = await Incident.find()
       .populate("reportedBy", "name email")
       .populate("assignedResponder", "name email")
@@ -104,7 +160,7 @@ const getAllIncidents = async (req, res) => {
       count: incidents.length,
       incidents,
     });
-  } catch (error) {
+  } catch(error){
     console.error("Get all incidents error:", error.message);
 
     return res.status(500).json({
@@ -117,49 +173,64 @@ const getAllIncidents = async (req, res) => {
 // Get a single incident by ID
 // Access: owner, assigned responder, supervisor, or admin.
 const getIncidentById = async (req, res) => {
-  try {
+  try{
     const incident = await Incident.findById(req.params.id)
       .populate("reportedBy", "name email")
       .populate("assignedResponder", "name email");
 
-    if (!incident) {
+    if(!incident){
       return res.status(404).json({
         message: "Incident not found",
       });
     }
 
-    const isOwner = incident.reportedBy?._id?.toString() === req.user.user_id;
+    const isOwner =
+      incident.reportedBy?._id?.toString() === req.user.user_id;
+
     const isAssignedResponder =
       incident.assignedResponder?._id?.toString() === req.user.user_id;
+
     // Handle populated vs raw ObjectId shapes
-    const isOwnerRaw = incident.reportedBy?.toString?.() === req.user.user_id;
+    const isOwnerRaw =
+      incident.reportedBy?.toString?.() === req.user.user_id;
+
     const isResponderRaw =
       incident.assignedResponder?.toString?.() === req.user.user_id;
+
     const isStaff = ["supervisor", "admin"].includes(req.user.role);
 
-    if (!(isOwner || isOwnerRaw || isAssignedResponder || isResponderRaw || isStaff)) {
+    if(
+      !(
+        isOwner ||
+        isOwnerRaw ||
+        isAssignedResponder ||
+        isResponderRaw ||
+        isStaff
+      )
+    ) {
       return res.status(403).json({
         message: "Not authorized to view this incident",
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Incident fetched successfully",
       incident,
     });
-  } catch (error) {
+  } catch(error){
     console.error("Get incident error:", error.message);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
 };
 
 
+// Update incident status
 const updateIncidentStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
+  try{
+    const{status} = req.body;
 
     const allowedStatuses = [
       "TRIAGED",
@@ -171,7 +242,7 @@ const updateIncidentStatus = async (req, res) => {
       "ESCALATED",
     ];
 
-    if (!allowedStatuses.includes(status)) {
+    if(!allowedStatuses.includes(status)){
       return res.status(400).json({
         message: "Invalid incident status",
       });
@@ -179,7 +250,7 @@ const updateIncidentStatus = async (req, res) => {
 
     const incident = await Incident.findById(req.params.id);
 
-    if (!incident) {
+    if(!incident){
       return res.status(404).json({
         message: "Incident not found",
       });
@@ -194,7 +265,7 @@ const updateIncidentStatus = async (req, res) => {
       incident.assignedResponder &&
       incident.assignedResponder.toString() === req.user.user_id;
 
-    if (!isSupervisorOrAdmin && !isAssignedResponder) {
+    if(!isSupervisorOrAdmin && !isAssignedResponder){
       return res.status(403).json({
         message: "You are not authorized to update this incident",
       });
@@ -214,7 +285,7 @@ const updateIncidentStatus = async (req, res) => {
 
     const permittedNextStatuses = transitions[incident.status] || [];
 
-    if (!permittedNextStatuses.includes(status)) {
+    if(!permittedNextStatuses.includes(status)){
       return res.status(400).json({
         message: `Cannot change status from ${incident.status} to ${status}`,
       });
@@ -222,7 +293,7 @@ const updateIncidentStatus = async (req, res) => {
 
     // Only supervisors/admins can perform escalation
     // or close a resolved incident.
-    if (
+    if(
       (status === "ESCALATED" || status === "CLOSED") &&
       !isSupervisorOrAdmin
     ) {
@@ -231,45 +302,44 @@ const updateIncidentStatus = async (req, res) => {
       });
     }
 
-    
-const previousStatus = incident.status;
+    const previousStatus = incident.status;
 
-incident.status = status;
-await incident.save();
+    incident.status = status;
+    await incident.save();
 
-// Notify the incident reporter
-const io = req.app.get("io");
+    // Notify the incident reporter
+    const io = req.app.get("io");
 
-const statusUpdate = {
-  message: "Incident status updated",
-  incident: {
-    _id: incident._id,
-    category: incident.category,
-    priority: incident.priority,
-    status: incident.status,
-  },
-  previousStatus,
-};
+    const statusUpdate = {
+      message: "Incident status updated",
+      incident: {
+        _id: incident._id,
+        category: incident.category,
+        priority: incident.priority,
+        status: incident.status,
+      },
+      previousStatus,
+    };
 
-io.to(`user:${incident.reportedBy}`).emit(
-  "incident:status_updated",
-  statusUpdate
-);
+    io.to(`user:${incident.reportedBy}`).emit(
+      "incident:status_updated",
+      statusUpdate
+    );
 
-// Notify the assigned responder, if one exists
-if (incident.assignedResponder) {
-  io.to(`user:${incident.assignedResponder}`).emit(
-    "incident:status_updated",
-    statusUpdate
-  );
-}
+    // Notify the assigned responder, if one exists
+    if(incident.assignedResponder){
+      io.to(`user:${incident.assignedResponder}`).emit(
+        "incident:status_updated",
+        statusUpdate
+      );
+    }
 
-return res.status(200).json({
-  message: "Incident status updated successfully",
-  incident,
-});
+    return res.status(200).json({
+      message: "Incident status updated successfully",
+      incident,
+    });
 
-  } catch (error) {
+  } catch(error){
     console.error("Update incident status error:", error.message);
 
     return res.status(500).json({
@@ -279,15 +349,17 @@ return res.status(200).json({
 };
 
 
+// Assign or reassign an incident
 const assignIncident = async (req, res) => {
-  try {
+  try{
+    // Only supervisors and admins can assign incidents
     if(!["admin", "supervisor"].includes(req.user.role)){
       return res.status(403).json({
         message: "Only admins and supervisors can assign incidents",
       });
     }
 
-    const {responderId} = req.body;
+    const{responderId} = req.body;
 
     if(!responderId){
       return res.status(400).json({
@@ -325,64 +397,83 @@ const assignIncident = async (req, res) => {
     incident.assignedResponder = responder._id;
     incident.status = "ASSIGNED";
     incident.assignedAt = assignedTime;
+
     incident.acknowledgementDueAt = new Date(
       assignedTime.getTime() + ACK_TIMEOUT_MINUTES * 60 * 1000
     );
+
     incident.escalatedAt = null;
 
     await incident.save();
 
     const io = req.app.get("io");
 
-    const notification = {
-      message: wasEscalated
-        ? "An escalated incident has been reassigned to you"
-        : "A new incident has been assigned to you",
-      incident: {
-        _id: incident._id,
-        category: incident.category,
-        description: incident.description,
-        priority: incident.priority,
-        status: incident.status,
-        location: incident.location,
-        assignedAt: incident.assignedAt,
-        acknowledgementDueAt: incident.acknowledgementDueAt,
-      },
+    const incidentDetails = {
+      _id: incident._id,
+      category: incident.category,
+      description: incident.description,
+      priority: incident.priority,
+      status: incident.status,
+      location: incident.location,
+      assignedAt: incident.assignedAt,
+      acknowledgementDueAt: incident.acknowledgementDueAt,
     };
 
-    // Notify the new responder.
+    // Notify the newly assigned responder
     io.to(`user:${responder._id}`).emit(
       "incident:assigned",
-      notification
+      {
+        message: wasEscalated
+          ? "An escalated incident has been reassigned to you"
+          : "A new incident has been assigned to you",
+        incident: incidentDetails,
+      }
     );
 
     if(wasEscalated){
-      // Notify the tourist.
+      // Notify the tourist who reported the incident
       io.to(`user:${incident.reportedBy}`).emit(
         "incident:reassigned",
-        notification
+        {
+          message: "Your incident has been reassigned to another responder",
+          incident: incidentDetails,
+        }
       );
 
-      // Notify the previous responder.
+      // Notify the previous responder, if different
       if (
         previousResponder &&
         previousResponder.toString() !== responder._id.toString()
       ) {
         io.to(`user:${previousResponder}`).emit(
           "incident:reassigned",
-          notification
+          {
+            message: "This incident has been reassigned to another responder",
+            incident: incidentDetails,
+          }
         );
       }
 
-      // Notify supervisors and admins.
-      const supervisors = await User.find({
-        role: { $in: ["supervisor", "admin"] },
-      }).select("_id");
+      // Notify supervisors and admins
+      // Notification lookup failure must not undo a successful assignment.
+      try{
+        const supervisors = await User.find({
+          role: { $in: ["supervisor", "admin"] },
+        }).select("_id");
 
-      for(const supervisor of supervisors){
-        io.to(`user:${supervisor._id}`).emit(
-          "incident:reassigned",
-          notification
+        for(const supervisor of supervisors){
+          io.to(`user:${supervisor._id}`).emit(
+            "incident:reassigned",
+            {
+              message: "An escalated incident has been reassigned",
+              incident: incidentDetails,
+            }
+          );
+        }
+      } catch(notificationError){
+        console.error(
+          "Supervisor notification error:",
+          notificationError.message
         );
       }
     }
@@ -393,7 +484,8 @@ const assignIncident = async (req, res) => {
         : "Incident assigned successfully",
       incident,
     });
-  }catch(error){
+
+  } catch(error){
     console.error("Assign incident error:", error.message);
 
     return res.status(500).json({
@@ -412,4 +504,3 @@ module.exports = {
   updateIncidentStatus,
   assignIncident,
 };
-

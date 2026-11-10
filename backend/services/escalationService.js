@@ -2,17 +2,12 @@ const Incident = require("../models/incident");
 const User = require("../models/user");
 
 const checkOverdueIncidents = async (io) => {
-  try {
+  let escalatedCount = 0;
+
+  try{
     const now = new Date();
 
-    // Find all supervisors and admins.
-    const supervisors = await User.find({
-      role: { $in: ["supervisor", "admin"] },
-    }).select("_id");
-
-    let escalatedCount = 0;
-
-    // Find and atomically escalate overdue assignments.
+    // Atomically escalate overdue assignments.
     while(true){
       const incident = await Incident.findOneAndUpdate(
         {
@@ -45,34 +40,53 @@ const checkOverdueIncidents = async (io) => {
       };
 
       // Notify the tourist.
-      io.to(`user:${incident.reportedBy}`).emit(
-        "incident:escalated",
-        notification
-      );
-
-      // Notify the assigned responder.
-      io.to(`user:${incident.assignedResponder}`).emit(
-        "incident:escalated",
-        notification
-      );
-
-      // Notify all supervisors and admins.
-      for(const supervisor of supervisors){
-        io.to(`user:${supervisor._id}`).emit(
+      try{
+        io.to(`user:${incident.reportedBy}`).emit(
           "incident:escalated",
           notification
+        );
+
+        // Notify the assigned responder.
+        io.to(`user:${incident.assignedResponder}`).emit(
+          "incident:escalated",
+          notification
+        );
+      }catch(notificationError){
+        console.error(
+          `Incident notification error (${incident._id}):`,
+          notificationError.message
+        );
+      }
+
+      // Supervisor lookup and notifications are isolated.
+      try{
+        const supervisors = await User.find({
+          role: { $in: ["supervisor", "admin"] },
+        }).select("_id");
+
+        for(const supervisor of supervisors){
+          io.to(`user:${supervisor._id}`).emit(
+            "incident:escalated",
+            notification
+          );
+        }
+      }catch(notificationError){
+        console.error(
+          `Supervisor notification error (${incident._id}):`,
+          notificationError.message
         );
       }
 
       console.log(
-        `Escalation notifications sent for incident ${incident._id}`
+        `Escalation notifications processed for incident ${incident._id}`
       );
     }
 
     return escalatedCount;
+
   }catch(error){
     console.error("Escalation checker error:", error.message);
-    return 0;
+    return escalatedCount;
   }
 };
 
