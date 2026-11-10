@@ -15,7 +15,6 @@ export default function AuthLayout({ headline, body, children }) {
 
         <div className="auth-radar" aria-hidden="true">
           <i /><i /><i /><i />
-          <span className="auth-radar-sweep" />
           <span className="auth-radar-core" />
         </div>
 

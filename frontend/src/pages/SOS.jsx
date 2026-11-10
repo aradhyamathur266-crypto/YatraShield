@@ -49,9 +49,6 @@ export default function SOS() {
         </p>
 
         <div className="sos-stage" data-sent={sent}>
-          <span className="sos-ripple" aria-hidden="true" />
-          <span className="sos-ripple" aria-hidden="true" />
-          <span className="sos-ripple" aria-hidden="true" />
           <button type="button" className="sos-button" onClick={onSend} disabled={sending || sent} aria-label="Send emergency SOS">
             <Icon name={sent ? "check" : "beacon"} size={34} strokeWidth={1.4} />
             <span>{sending ? "Sending…" : sent ? "Sent" : "Press for SOS"}</span>
