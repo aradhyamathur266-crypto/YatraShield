@@ -13,9 +13,11 @@ const generalLimiter = rateLimit({
 });
 
 // Authentication protection
+const isProduction = process.env.NODE_ENV === "production";
+
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: isProduction ? 5 : 50,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   skipSuccessfulRequests: true,
@@ -27,7 +29,7 @@ const loginLimiter = rateLimit({
 
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 5,
+  limit: isProduction ? 5 : 50,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   message: {

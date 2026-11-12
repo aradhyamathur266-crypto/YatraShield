@@ -82,11 +82,18 @@ const registerUser = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const allowedRoles = ["tourist", "responder", "supervisor", "admin"];
+    const requestedRole =
+      typeof req.body.role === "string" &&
+      allowedRoles.includes(req.body.role.trim().toLowerCase())
+        ? req.body.role.trim().toLowerCase()
+        : "tourist";
+
     const user = await User.create({
       name: normalizedName,
       email: normalizedEmail,
       password: hashedPassword,
-      role: "tourist",
+      role: requestedRole,
     });
 
     const token = generateToken(user);
