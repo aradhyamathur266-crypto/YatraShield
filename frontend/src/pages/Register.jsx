@@ -29,7 +29,7 @@ export default function Register() {
     setError("");
     if (!form.name.trim()) return setError("Please enter your name.");
     if (!form.email.trim()) return setError("Please enter your email.");
-    if (form.password.length < 6) return setError("Password must be at least 6 characters.");
+    if (form.password.length < 8) return setError("Password must be at least 8 characters.");
     if (form.password !== form.confirm) return setError("Passwords don’t match.");
     try {
       await register({ name: form.name.trim(), email: form.email.trim(), password: form.password, role: form.role });
@@ -82,7 +82,7 @@ export default function Register() {
             <span>Password</span>
             <span className="input-wrap">
               <input id="password" type={showPw ? "text" : "password"} autoComplete="new-password"
-                placeholder="Minimum 6 characters" value={form.password} onChange={(e) => set("password", e.target.value)} />
+                placeholder="Minimum 8 characters" value={form.password} onChange={(e) => set("password", e.target.value)} />
               <button type="button" className="icon-btn is-small" onClick={() => setShowPw((s) => !s)}
                 aria-label={showPw ? "Hide passwords" : "Show passwords"} aria-pressed={showPw}>
                 <Icon name={showPw ? "eyeOff" : "eye"} size={17} />
